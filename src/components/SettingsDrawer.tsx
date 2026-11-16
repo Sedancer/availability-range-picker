@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Globe, Moon, Calendar, RotateCcw, Check } from 'lucide-react';
+import { X, Globe, Moon, Calendar, RotateCcw, Check, Save } from 'lucide-react';
 import type { AppSettings, DayOfWeek } from '../types';
 import { ALL_DAYS } from '../utils/availability';
 import { TIMEZONE_OPTIONS } from '../utils/timezones';
@@ -25,18 +25,20 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
-      {/* Backdrop */}
+      {/* Backdrop with smooth blur */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-slate-900 border-l border-slate-800 text-slate-100 shadow-2xl flex flex-col">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
+        <div className="w-screen max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-l border-slate-800 text-slate-100 shadow-2xl flex flex-col">
           {/* Drawer Header */}
-          <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <span>Параметри та Налаштування</span>
+          <div className="px-6 py-5 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur flex items-center justify-between">
+            <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+              <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+                Параметри та Налаштування
+              </span>
             </h2>
             <button
               onClick={onClose}
@@ -47,9 +49,38 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           </div>
 
           {/* Drawer Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-7">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {/* Persistence Option */}
+            <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-indigo-300">
+                  <Save className="w-4 h-4 text-indigo-400" />
+                  <span>Збереження вибору годин</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.persistSchedule}
+                    onChange={(e) =>
+                      onUpdateSettings({
+                        ...settings,
+                        persistSchedule: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {settings.persistSchedule
+                  ? 'Увімкнено: обрані години тижня зберігаються в LocalStorage між перезавантаженнями.'
+                  : 'Вимкнено (за замовчуванням): після перезавантаження сітка стартує з чистого аркуша. Налаштування зберігаються завжди.'}
+              </p>
+            </div>
+
             {/* Section 1: Timezones */}
-            <div className="space-y-4">
+            <div className="space-y-4 pt-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-indigo-400">
                 <Globe className="w-4 h-4" />
                 <span>Часові зони</span>
@@ -68,7 +99,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         myTimezoneOffset: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
                   >
                     {TIMEZONE_OPTIONS.map((tz) => (
                       <option key={`my-${tz.offset}`} value={tz.offset}>
@@ -90,7 +121,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         clientTimezoneOffset: parseFloat(e.target.value),
                       })
                     }
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
                   >
                     {TIMEZONE_OPTIONS.map((tz) => (
                       <option key={`client-${tz.offset}`} value={tz.offset}>
@@ -120,7 +151,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             </div>
 
             {/* Section 2: Sleep Hours */}
-            <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="space-y-4 pt-4 border-t border-slate-800/80">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-semibold text-indigo-400">
                   <Moon className="w-4 h-4" />
@@ -143,7 +174,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </div>
 
               <p className="text-xs text-slate-400">
-                За замовчуванням приховує години відпочинку, щоб зменшити 24-годинну сітку до зручного розміру.
+                Приховує нічні години, щоб не перевантажувати екран зайвими 24 рядками.
               </p>
 
               {settings.sleepEnabled && (
@@ -196,7 +227,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             </div>
 
             {/* Section 3: Start Day */}
-            <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="space-y-4 pt-4 border-t border-slate-800/80">
               <div className="flex items-center gap-2 text-sm font-semibold text-indigo-400">
                 <Calendar className="w-4 h-4" />
                 <span>Перший день тижня</span>
@@ -235,11 +266,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             </div>
 
             {/* Section 4: Data persistence note & Reset */}
-            <div className="pt-4 border-t border-slate-800 space-y-3">
-              <div className="text-xs text-slate-400 bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                💾 Усі зміни та виділені години автоматично зберігаються у вашому браузері (LocalStorage) і відновлюються після оновлення сторінки.
-              </div>
-
+            <div className="pt-4 border-t border-slate-800/80 space-y-3">
               <button
                 type="button"
                 onClick={onResetSettings}
@@ -252,10 +279,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+          <div className="p-4 border-t border-slate-800/80 bg-slate-900/60 backdrop-blur">
             <button
               onClick={onClose}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
             >
               Зберегти та закрити
             </button>

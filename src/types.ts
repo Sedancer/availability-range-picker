@@ -16,6 +16,7 @@ export interface AppSettings {
   sleepStartHour: number; // e.g. 22 (22:00)
   sleepEndHour: number;   // e.g. 8 (08:00)
   showBothTimezonesInOutput: boolean;
+  persistSchedule: boolean; // default false: do not persist week schedule across browser restarts unless turned on
 }
 
 // Map from DayOfWeek to array of selected hour indices (0..23)
