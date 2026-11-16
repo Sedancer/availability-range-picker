@@ -84,15 +84,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handlePrefillMonWed = () => {
-    setSchedule((prev) => ({
-      ...prev,
-      monday: [14, 15, 16, 18, 19],
-      tuesday: [14, 15, 16, 17],
-      wednesday: [10, 11, 12, 13, 14, 15],
-    }));
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
       {/* Background ambient lighting/gradient */}
@@ -130,7 +121,6 @@ export const App: React.FC = () => {
             schedule={schedule}
             settings={settings}
             onChangeSchedule={setSchedule}
-            onPrefillMonWed={handlePrefillMonWed}
           />
         </section>
       </main>

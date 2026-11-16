@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, X, Eraser, PenTool, LayoutGrid, Smartphone, Sparkles, Ban } from 'lucide-react';
+import { Check, X, Eraser, PenTool, LayoutGrid, Smartphone, Ban } from 'lucide-react';
 import type { AppSettings, DayOfWeek, WeekSchedule } from '../types';
 import { getOrderedDays, isSleepHour } from '../utils/availability';
 
@@ -7,25 +7,26 @@ interface TimeGridProps {
   schedule: WeekSchedule;
   settings: AppSettings;
   onChangeSchedule: (value: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
-  onPrefillMonWed: () => void;
 }
 
 export const TimeGrid: React.FC<TimeGridProps> = ({
   schedule,
   settings,
   onChangeSchedule,
-  onPrefillMonWed,
 }) => {
-  // Mobile touch draw mode: 'add' or 'remove'
+  // Mobile touch draw mode: 'add' (green) or 'remove' (eraser)
   const [mobileDrawMode, setMobileDrawMode] = useState<'add' | 'remove'>('add');
 
-  // Mobile view mode: 'tabs' (day by day full screen) or 'list' (all 7 days together)
+  // Mobile view mode: 'tabs' (single day focus) or 'list' (all days)
   const [mobileView, setMobileView] = useState<'tabs' | 'list'>('tabs');
   const [activeMobileDay, setActiveMobileDay] = useState<DayOfWeek>(settings.startDay);
 
   // Mouse dragging state
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<'add' | 'remove'>('add');
+  const dragDayIdRef = useRef<DayOfWeek | null>(null);
+  const dragStartHourRef = useRef<number | null>(null);
+  const initialSelectionOnDragStartRef = useRef<number[]>([]);
   const [, setRerender] = useState({});
 
   // Compute displayed hours
@@ -36,7 +37,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
 
   const orderedDays = getOrderedDays(settings.startDay);
 
-  // Apply hour change helper
+  // Apply single-hour modification
   const setHourState = useCallback(
     (dayId: DayOfWeek, hour: number, shouldAdd: boolean) => {
       onChangeSchedule((prev: WeekSchedule) => {
@@ -60,11 +61,13 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     [onChangeSchedule]
   );
 
-  // Window mouse up listener to terminate dragging anywhere
+  // Window mouse up listener to terminate canvas dragging anywhere
   useEffect(() => {
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
+        dragDayIdRef.current = null;
+        dragStartHourRef.current = null;
         setRerender({});
       }
     };
@@ -72,7 +75,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // Mouse event handlers for desktop
+  // Desktop Mouse Down: LMB = paint green; RMB = erase point
   const handleMouseDown = (
     e: React.MouseEvent,
     dayId: DayOfWeek,
@@ -80,32 +83,72 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     isDisabled: boolean
   ) => {
     if (isDisabled) return;
-    // 0 = left button (add), 2 = right button (remove)
+
     if (e.button === 0) {
+      // Left Click: start canvas paint range
       isDraggingRef.current = true;
       dragModeRef.current = 'add';
+      dragDayIdRef.current = dayId;
+      dragStartHourRef.current = hour;
+      initialSelectionOnDragStartRef.current = schedule[dayId] || [];
+
       setHourState(dayId, hour, true);
     } else if (e.button === 2) {
+      // Right Click: erase point
       e.preventDefault();
       isDraggingRef.current = true;
       dragModeRef.current = 'remove';
+      dragDayIdRef.current = dayId;
+      dragStartHourRef.current = hour;
+
       setHourState(dayId, hour, false);
     }
   };
 
-  const handleMouseEnter = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
-    if (isDisabled) return;
-    if (isDraggingRef.current) {
-      setHourState(dayId, hour, dragModeRef.current === 'add');
+  // Canvas Drag Over / Mouse Enter: smooth range painting
+  const handleMouseEnter = (dayId: DayOfWeek, currentHour: number, isDisabled: boolean) => {
+    if (isDisabled || !isDraggingRef.current) return;
+
+    if (dragModeRef.current === 'add') {
+      if (dragDayIdRef.current === dayId && dragStartHourRef.current !== null) {
+        // Continuous range between startHour and currentHour
+        const start = Math.min(dragStartHourRef.current, currentHour);
+        const end = Math.max(dragStartHourRef.current, currentHour);
+
+        const rangeHours = visibleHours.filter((h) => h >= start && h <= end);
+
+        onChangeSchedule((prev: WeekSchedule) => {
+          const base = initialSelectionOnDragStartRef.current;
+          const merged = Array.from(new Set([...base, ...rangeHours])).sort((a, b) => a - b);
+          return {
+            ...prev,
+            [dayId]: merged,
+          };
+        });
+      } else {
+        // Across different day or free-paint
+        setHourState(dayId, currentHour, true);
+      }
+    } else if (dragModeRef.current === 'remove') {
+      // Eraser brush
+      setHourState(dayId, currentHour, false);
     }
   };
 
-  // Preset handlers
-  const handleApplyPreset = (dayId: DayOfWeek, presetHours: number[]) => {
-    onChangeSchedule((prev: WeekSchedule) => ({
-      ...prev,
-      [dayId]: presetHours.filter((h) => visibleHours.includes(h)).sort((a, b) => a - b),
-    }));
+  // Mobile Touch Move handler: allows painting across slots smoothly with finger
+  const handleTouchMove = (e: React.TouchEvent, dayId: DayOfWeek) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!target) return;
+
+    const hourAttr = target.getAttribute('data-hour');
+    const targetDayId = target.getAttribute('data-day');
+
+    if (hourAttr && targetDayId === dayId) {
+      const hour = parseInt(hourAttr, 10);
+      setHourState(dayId, hour, mobileDrawMode === 'add');
+    }
   };
 
   const handleSelectAllVisible = (dayId: DayOfWeek) => {
@@ -181,8 +224,8 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
               <button
                 type="button"
                 onClick={() => handleSelectAllVisible(day.id)}
-                title="Select all active hours"
-                className="p-1.5 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
+                title="Select all visible hours"
+                className="p-1.5 text-slate-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors cursor-pointer"
               >
                 <Check className="w-4 h-4" />
               </button>
@@ -201,7 +244,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Day Hours Grid */}
         <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
           {isWeekendDisabled ? (
-            <div className="py-8 flex flex-col items-center justify-center text-center text-slate-500 space-y-2">
+            <div className="py-10 flex flex-col items-center justify-center text-center text-slate-500 space-y-2">
               <Ban className="w-8 h-8 stroke-1 text-slate-600" />
               <p className="text-xs">Weekend is disabled in settings</p>
               <span className="font-mono text-sm font-semibold text-slate-600">—</span>
@@ -209,6 +252,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
           ) : (
             <>
               <div
+                onTouchMove={(e) => handleTouchMove(e, day.id)}
                 className={`grid gap-2 ${
                   isFullMobile
                     ? 'grid-cols-3 sm:grid-cols-4'
@@ -222,6 +266,8 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                   return (
                     <button
                       key={`${day.id}-hour-${hour}`}
+                      data-hour={hour}
+                      data-day={day.id}
                       type="button"
                       onMouseDown={(e) => handleMouseDown(e, day.id, hour, false)}
                       onMouseEnter={() => handleMouseEnter(day.id, hour, false)}
@@ -232,47 +278,22 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                         isFullMobile ? 'h-11 text-sm' : 'h-9 text-xs'
                       } rounded-xl font-mono flex items-center justify-center transition-all select-none cursor-pointer ${
                         isSelected
-                          ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/50 scale-[1.02]'
-                          : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/80 scale-[1.02]'
+                          : 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white border border-slate-700/50'
                       }`}
                     >
-                      <span>{formattedHour}</span>
+                      <span className="pointer-events-none">{formattedHour}</span>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Quick Presets for this day */}
-              <div className="pt-2 border-t border-slate-800/60 flex flex-wrap gap-1.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset(day.id, [10, 11, 12, 13, 14, 15, 16, 17])}
-                  className="px-2 py-1 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 rounded-md border border-slate-700/50 transition-colors cursor-pointer"
-                >
-                  10-18
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset(day.id, [14, 15, 16, 17])}
-                  className="px-2 py-1 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 rounded-md border border-slate-700/50 transition-colors cursor-pointer"
-                >
-                  14-18
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset(day.id, [18, 19, 20, 21])}
-                  className="px-2 py-1 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 rounded-md border border-slate-700/50 transition-colors cursor-pointer"
-                >
-                  18-22
-                </button>
-              </div>
-
               {/* Day Summary Footer */}
-              <div className="pt-2 border-t border-slate-800/60 text-xs flex items-center justify-between text-slate-400">
+              <div className="pt-2.5 border-t border-slate-800/60 text-xs flex items-center justify-between text-slate-400">
                 <span>Selected:</span>
                 <span
                   className={`font-mono font-medium ${
-                    hasSelected ? 'text-indigo-400 font-semibold' : 'text-slate-600'
+                    hasSelected ? 'text-emerald-400 font-semibold' : 'text-slate-600'
                   }`}
                 >
                   {hasSelected ? `${selectedHours.length} hrs` : 'Unavailable'}
@@ -298,23 +319,13 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Interaction hints */}
         <div className="flex flex-wrap items-center gap-3.5 text-slate-300">
           <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 inline-block shadow-xs shadow-indigo-500/50"></span>
-            <span>Left Click (LMB): <strong>Add</strong></span>
+            <span className="w-3.5 h-3.5 rounded-md bg-emerald-500 inline-block shadow-xs shadow-emerald-500/50"></span>
+            <span>Left Click (LMB): <strong>Hold & drag to paint green</strong></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-slate-800 border border-slate-700 inline-block"></span>
-            <span>Right Click (RMB): <strong>Erase</strong></span>
+            <span className="w-3.5 h-3.5 rounded-md bg-slate-800 border border-slate-600 inline-block"></span>
+            <span>Right Click (RMB): <strong>Click to erase single hour</strong></span>
           </div>
-
-          {/* Prefill Mon-Wed Quick Button */}
-          <button
-            type="button"
-            onClick={onPrefillMonWed}
-            className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-indigo-500/20 to-violet-500/20 hover:from-indigo-500/30 hover:to-violet-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg transition-all cursor-pointer font-medium"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Prefill Mon–Wed</span>
-          </button>
         </div>
 
         {/* View Mode & Touch Switcher */}
@@ -326,7 +337,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
               onClick={() => setMobileView('tabs')}
               title="Single Day Focus Mode"
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                mobileView === 'tabs' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400'
+                mobileView === 'tabs' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
@@ -336,7 +347,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
               onClick={() => setMobileView('list')}
               title="Show all days"
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                mobileView === 'list' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400'
+                mobileView === 'list' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -350,12 +361,12 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
               onClick={() => setMobileDrawMode('add')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer ${
                 mobileDrawMode === 'add'
-                  ? 'bg-indigo-600 text-white font-medium shadow-xs'
+                  ? 'bg-emerald-600 text-white font-medium shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <PenTool className="w-3.5 h-3.5" />
-              <span>Add</span>
+              <span>Paint</span>
             </button>
             <button
               type="button"
@@ -387,7 +398,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
               onClick={() => setActiveMobileDay(day.id)}
               className={`flex-1 min-w-[70px] py-2.5 px-2 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
                 isCurrent
-                  ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md shadow-indigo-500/10'
+                  ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
                   : isWeekendDisabled
                   ? 'opacity-40 bg-slate-950/60 border-slate-900 text-slate-500'
                   : day.isWeekend
@@ -401,7 +412,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                   isWeekendDisabled
                     ? 'text-slate-600'
                     : hoursCount > 0
-                    ? 'bg-indigo-500/30 text-indigo-300 font-mono font-medium'
+                    ? 'bg-emerald-500/30 text-emerald-300 font-mono font-medium'
                     : 'text-slate-500'
                 }`}
               >
