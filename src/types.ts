@@ -2,9 +2,8 @@ export type DayOfWeek = 'thursday' | 'friday' | 'saturday' | 'sunday' | 'monday'
 
 export interface DayConfig {
   id: DayOfWeek;
-  nameUk: string;
-  shortUk: string;
-  nameEn: string;
+  name: string;
+  shortName: string;
   isWeekend: boolean;
 }
 
@@ -16,7 +15,8 @@ export interface AppSettings {
   sleepStartHour: number; // e.g. 22 (22:00)
   sleepEndHour: number;   // e.g. 8 (08:00)
   showBothTimezonesInOutput: boolean;
-  persistSchedule: boolean; // default false: do not persist week schedule across browser restarts unless turned on
+  persistSchedule: boolean;
+  disableWeekends: boolean; // when true, Saturday & Sunday are dimmed, non-interactive and marked as '—'
 }
 
 // Map from DayOfWeek to array of selected hour indices (0..23)

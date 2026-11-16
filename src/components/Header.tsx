@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ settings, onOpenSettings, onClea
               </span>
             </h1>
             <p className="text-xs text-slate-400">
-              Вибір слотів доступності з підтримкою миші, часових зон та годин сну
+              Interactive slot selector with timezones, sleep filters & drag controls
             </p>
           </div>
         </div>
@@ -35,10 +35,10 @@ export const Header: React.FC<HeaderProps> = ({ settings, onOpenSettings, onClea
         <div className="flex items-center gap-2 sm:gap-3 ml-auto">
           {/* Timezone Indicator */}
           <div className="hidden md:flex items-center gap-2 text-xs bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 text-slate-300">
-            <span className="text-slate-400">Моя:</span>
+            <span className="text-slate-400">Me:</span>
             <span className="font-semibold text-emerald-400">{formatOffset(settings.myTimezoneOffset)}</span>
             <span className="text-slate-600">→</span>
-            <span className="text-slate-400">Клієнт:</span>
+            <span className="text-slate-400">Client:</span>
             <span className="font-semibold text-sky-400">{formatOffset(settings.clientTimezoneOffset)}</span>
           </div>
 
@@ -47,12 +47,12 @@ export const Header: React.FC<HeaderProps> = ({ settings, onOpenSettings, onClea
             {settings.sleepEnabled ? (
               <>
                 <Moon className="w-3.5 h-3.5 text-amber-400" />
-                <span>Сон: {String(settings.sleepStartHour).padStart(2, '0')}:00-{String(settings.sleepEndHour).padStart(2, '0')}:00</span>
+                <span>Sleep: {String(settings.sleepStartHour).padStart(2, '0')}:00-{String(settings.sleepEndHour).padStart(2, '0')}:00</span>
               </>
             ) : (
               <>
                 <Sun className="w-3.5 h-3.5 text-amber-300" />
-                <span>24 години</span>
+                <span>24 Hours</span>
               </>
             )}
           </div>
@@ -60,8 +60,8 @@ export const Header: React.FC<HeaderProps> = ({ settings, onOpenSettings, onClea
           {/* Clear button */}
           <button
             onClick={onClearAll}
-            title="Очистити всі обрані слоти"
-            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/20 transition-colors cursor-pointer"
+            title="Clear all selected slots"
+            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg border border-transparent hover:border-rose-500/20 transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({ settings, onOpenSettings, onClea
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm px-3.5 py-2 rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer"
           >
             <Settings className="w-4 h-4" />
-            <span>Налаштування</span>
+            <span>Settings</span>
           </button>
         </div>
       </div>

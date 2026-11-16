@@ -14,17 +14,19 @@ const DEFAULT_SETTINGS: AppSettings = {
   sleepStartHour: 22,
   sleepEndHour: 8,
   showBothTimezonesInOutput: false,
-  persistSchedule: false, // by default false as requested
+  persistSchedule: false,
+  disableWeekends: false,
 };
 
-const EMPTY_SCHEDULE: WeekSchedule = {
+// Pre-filled Monday, Tuesday, Wednesday as requested
+const PREFILLED_SCHEDULE: WeekSchedule = {
   thursday: [],
   friday: [],
   saturday: [],
   sunday: [],
-  monday: [],
-  tuesday: [],
-  wednesday: [],
+  monday: [14, 15, 16, 18, 19], // 14:00 - 17:00, 18:00 - 20:00
+  tuesday: [14, 15, 16, 17],     // 14:00 - 18:00
+  wednesday: [10, 11, 12, 13, 14, 15], // 10:00 - 16:00
 };
 
 const SCHEDULE_STORAGE_KEY = 'timeslotter_schedule_v1';
@@ -35,21 +37,21 @@ export const App: React.FC = () => {
     DEFAULT_SETTINGS
   );
 
-  // Initialize schedule: if persistSchedule is true, read from localStorage; otherwise start fresh
+  // Initialize schedule with prefilled Mon-Wed
   const [schedule, setSchedule] = useState<WeekSchedule>(() => {
     if (settings.persistSchedule) {
       try {
         const item = window.localStorage.getItem(SCHEDULE_STORAGE_KEY);
-        return item ? JSON.parse(item) : EMPTY_SCHEDULE;
+        return item ? JSON.parse(item) : PREFILLED_SCHEDULE;
       } catch (err) {
         console.warn('Error reading schedule from localStorage:', err);
-        return EMPTY_SCHEDULE;
+        return PREFILLED_SCHEDULE;
       }
     }
-    return EMPTY_SCHEDULE;
+    return PREFILLED_SCHEDULE;
   });
 
-  // Sync schedule with localStorage ONLY when persistSchedule is enabled
+  // Sync schedule with localStorage when persistSchedule is enabled
   useEffect(() => {
     if (settings.persistSchedule) {
       try {
@@ -58,7 +60,6 @@ export const App: React.FC = () => {
         console.warn('Error saving schedule to localStorage:', err);
       }
     } else {
-      // If disabled, remove from localStorage
       window.localStorage.removeItem(SCHEDULE_STORAGE_KEY);
     }
   }, [schedule, settings.persistSchedule]);
@@ -70,9 +71,26 @@ export const App: React.FC = () => {
   };
 
   const handleClearAllSchedule = () => {
-    if (window.confirm('Очистити всі обрані години для всіх днів?')) {
-      setSchedule(EMPTY_SCHEDULE);
+    if (window.confirm('Clear all selected hours across all days?')) {
+      setSchedule({
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+        monday: [],
+        tuesday: [],
+        wednesday: [],
+      });
     }
+  };
+
+  const handlePrefillMonWed = () => {
+    setSchedule((prev) => ({
+      ...prev,
+      monday: [14, 15, 16, 18, 19],
+      tuesday: [14, 15, 16, 17],
+      wednesday: [10, 11, 12, 13, 14, 15],
+    }));
   };
 
   return (
@@ -96,17 +114,23 @@ export const App: React.FC = () => {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-200">
-              Графік тижня (7 днів, починаючи з Четверга)
+              Weekly Schedule (7 Days, starting Thursday)
             </h2>
-            <span className="text-xs text-slate-400">
-              {settings.sleepEnabled ? 'Фільтр сну активний' : 'Усі 24 години'}
-            </span>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              {settings.disableWeekends && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                  Weekends Disabled
+                </span>
+              )}
+              <span>{settings.sleepEnabled ? 'Sleep filter active' : 'Full 24 Hours'}</span>
+            </div>
           </div>
 
           <TimeGrid
             schedule={schedule}
             settings={settings}
             onChangeSchedule={setSchedule}
+            onPrefillMonWed={handlePrefillMonWed}
           />
         </section>
       </main>
@@ -122,7 +146,7 @@ export const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900/80 py-4 text-center text-xs text-slate-500">
-        TimeSlotter • Зручний вибір слотів • Готово для деплою на GitHub
+        TimeSlotter • 1-Click Availability Generator • Ready for GitHub Pages deployment
       </footer>
     </div>
   );

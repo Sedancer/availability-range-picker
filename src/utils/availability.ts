@@ -1,13 +1,13 @@
 import type { DayConfig, DayOfWeek, AppSettings, WeekSchedule } from '../types';
 
 export const ALL_DAYS: DayConfig[] = [
-  { id: 'thursday', nameUk: 'Четвер', shortUk: 'Чт', nameEn: 'Thursday', isWeekend: false },
-  { id: 'friday', nameUk: "П'ятниця", shortUk: 'Пт', nameEn: 'Friday', isWeekend: false },
-  { id: 'saturday', nameUk: 'Субота', shortUk: 'Сб', nameEn: 'Saturday', isWeekend: true },
-  { id: 'sunday', nameUk: 'Неділя', shortUk: 'Нд', nameEn: 'Sunday', isWeekend: true },
-  { id: 'monday', nameUk: 'Понеділок', shortUk: 'Пн', nameEn: 'Monday', isWeekend: false },
-  { id: 'tuesday', nameUk: 'Вівторок', shortUk: 'Вт', nameEn: 'Tuesday', isWeekend: false },
-  { id: 'wednesday', nameUk: 'Середа', shortUk: 'Ср', nameEn: 'Wednesday', isWeekend: false },
+  { id: 'thursday', name: 'Thursday', shortName: 'Thu', isWeekend: false },
+  { id: 'friday', name: 'Friday', shortName: 'Fri', isWeekend: false },
+  { id: 'saturday', name: 'Saturday', shortName: 'Sat', isWeekend: true },
+  { id: 'sunday', name: 'Sunday', shortName: 'Sun', isWeekend: true },
+  { id: 'monday', name: 'Monday', shortName: 'Mon', isWeekend: false },
+  { id: 'tuesday', name: 'Tuesday', shortName: 'Tue', isWeekend: false },
+  { id: 'wednesday', name: 'Wednesday', shortName: 'Wed', isWeekend: false },
 ];
 
 export function getOrderedDays(startDay: DayOfWeek): DayConfig[] {
@@ -80,6 +80,16 @@ export function generateAvailabilityString(
   const lines: string[] = [];
 
   for (const day of orderedDays) {
+    // If weekends are disabled, always output dash '—'
+    if (settings.disableWeekends && day.isWeekend) {
+      if (format === 'singleline') {
+        lines.push(`${day.shortName}: —`);
+      } else {
+        lines.push(`${day.name}: —`);
+      }
+      continue;
+    }
+
     const hours = schedule[day.id] || [];
     const slots = groupConsecutiveHours(hours);
 
@@ -87,7 +97,7 @@ export function generateAvailabilityString(
     if (slots.length > 0) {
       if (hasTzDiff && settings.showBothTimezonesInOutput) {
         slotsText = slots
-          .map((s) => `${formatSlot(s, 0)} (мій) / ${formatSlot(s, offsetDiff)} (клієнт)`)
+          .map((s) => `${formatSlot(s, 0)} (me) / ${formatSlot(s, offsetDiff)} (client)`)
           .join(', ');
       } else if (hasTzDiff) {
         slotsText = slots.map((s) => formatSlot(s, offsetDiff)).join(', ');
@@ -97,11 +107,11 @@ export function generateAvailabilityString(
     }
 
     if (format === 'multiline') {
-      lines.push(`${day.nameUk}: ${slotsText}`);
+      lines.push(`${day.name}: ${slotsText}`);
     } else if (format === 'singleline') {
-      lines.push(`${day.shortUk}: ${slotsText}`);
+      lines.push(`${day.shortName}: ${slotsText}`);
     } else {
-      lines.push(`${day.shortUk}: ${slotsText}`);
+      lines.push(`${day.shortName}: ${slotsText}`);
     }
   }
 

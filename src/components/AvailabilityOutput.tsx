@@ -42,10 +42,10 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-white">
-              Згенерований рядок доступності
+              Generated Availability String
             </h3>
             <p className="text-xs text-slate-400">
-              Оновлюється миттєво при виборі годин. Клікніть для копіювання.
+              Updates in real-time. Click anywhere in the box to copy.
             </p>
           </div>
         </div>
@@ -63,7 +63,7 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              По рядках
+              Multi-line
             </button>
             <button
               type="button"
@@ -74,7 +74,7 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              В один рядок
+              Single-line
             </button>
           </div>
 
@@ -91,12 +91,12 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
             {copied ? (
               <>
                 <Check className="w-4 h-4 animate-in zoom-in" />
-                <span>Скопійовано!</span>
+                <span>Copied!</span>
               </>
             ) : (
               <>
                 <Copy className="w-4 h-4" />
-                <span>Копіювати в 1 клік</span>
+                <span>Copy 1-Click</span>
               </>
             )}
           </button>
@@ -106,7 +106,7 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
       {/* Clickable Output Box */}
       <div
         onClick={handleCopy}
-        title="Натисніть у будь-якому місці для копіювання"
+        title="Click anywhere to copy"
         className="group relative bg-slate-950/80 border border-slate-800/90 hover:border-indigo-500/50 rounded-xl p-3.5 sm:p-4 font-mono text-xs sm:text-sm text-slate-200 transition-all cursor-pointer overflow-x-auto"
       >
         <pre className="whitespace-pre-wrap leading-relaxed select-all">
@@ -116,7 +116,7 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
         {/* Hover overlay hint */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800/90 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 pointer-events-none flex items-center gap-1 shadow-md">
           <Copy className="w-3 h-3" />
-          <span>Клікніть, щоб скопіювати</span>
+          <span>Click to copy</span>
         </div>
       </div>
 
@@ -125,15 +125,15 @@ export const AvailabilityOutput: React.FC<AvailabilityOutputProps> = ({
         <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         {offsetDiff !== 0 ? (
           <span>
-            Години автоматично перераховані для часової зони клієнта (
+            Hours automatically converted to client timezone (
             <strong className="text-sky-300">
               {formatOffset(settings.clientTimezoneOffset)}
             </strong>
-            , різниця: {offsetDiff > 0 ? `+${offsetDiff}` : offsetDiff} год).
+            , offset: {offsetDiff > 0 ? `+${offsetDiff}` : offsetDiff}h).
           </span>
         ) : (
           <span>
-            Часова зона збігається з клієнтською (
+            Timezone matches client (
             <strong className="text-emerald-300">
               {formatOffset(settings.myTimezoneOffset)}
             </strong>
