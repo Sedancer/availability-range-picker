@@ -19,10 +19,8 @@ export function getOrderedDays(startDay: DayOfWeek): DayConfig[] {
 export function isSleepHour(hour: number, sleepStart: number, sleepEnd: number): boolean {
   if (sleepStart === sleepEnd) return false;
   if (sleepStart > sleepEnd) {
-    // e.g. 22:00 to 08:00 -> hours >= 22 or hours < 8
     return hour >= sleepStart || hour < sleepEnd;
   } else {
-    // e.g. 01:00 to 07:00 -> hours >= 1 and hours < 7
     return hour >= sleepStart && hour < sleepEnd;
   }
 }
@@ -54,39 +52,33 @@ export function groupConsecutiveHours(hours: number[]): TimeSlot[] {
   return slots;
 }
 
-function formatHour(h: number): string {
+function normalizeHour(h: number): number {
   let normalized = h % 24;
   if (normalized < 0) normalized += 24;
-  return `${String(Math.floor(normalized)).padStart(2, '0')}:00`;
+  return Math.floor(normalized);
 }
 
+// Format: 14:17 without adding minutes, as requested
 export function formatSlot(slot: TimeSlot, offsetDiff: number = 0): string {
-  const clientStart = slot.startHour + offsetDiff;
-  const clientEnd = slot.endHour + offsetDiff;
-  return `${formatHour(clientStart)} - ${formatHour(clientEnd)}`;
+  const clientStart = normalizeHour(slot.startHour + offsetDiff);
+  const clientEnd = normalizeHour(slot.endHour + offsetDiff);
+  return `${clientStart}:${clientEnd}`;
 }
 
-export type OutputFormatType = 'multiline' | 'singleline' | 'simple';
-
+// Always 3 letters (Thu, Fri, Sat...) and always single line separated by pipe
 export function generateAvailabilityString(
   schedule: WeekSchedule,
-  settings: AppSettings,
-  format: OutputFormatType = 'multiline'
+  settings: AppSettings
 ): string {
   const orderedDays = getOrderedDays(settings.startDay);
   const offsetDiff = settings.clientTimezoneOffset - settings.myTimezoneOffset;
   const hasTzDiff = offsetDiff !== 0;
 
-  const lines: string[] = [];
+  const parts: string[] = [];
 
   for (const day of orderedDays) {
-    // If weekends are disabled, always output dash '—'
     if (settings.disableWeekends && day.isWeekend) {
-      if (format === 'singleline') {
-        lines.push(`${day.shortName}: —`);
-      } else {
-        lines.push(`${day.name}: —`);
-      }
+      parts.push(`${day.shortName}: —`);
       continue;
     }
 
@@ -97,7 +89,7 @@ export function generateAvailabilityString(
     if (slots.length > 0) {
       if (hasTzDiff && settings.showBothTimezonesInOutput) {
         slotsText = slots
-          .map((s) => `${formatSlot(s, 0)} (me) / ${formatSlot(s, offsetDiff)} (client)`)
+          .map((s) => `${formatSlot(s, 0)}(me)/${formatSlot(s, offsetDiff)}(cl)`)
           .join(', ');
       } else if (hasTzDiff) {
         slotsText = slots.map((s) => formatSlot(s, offsetDiff)).join(', ');
@@ -106,18 +98,8 @@ export function generateAvailabilityString(
       }
     }
 
-    if (format === 'multiline') {
-      lines.push(`${day.name}: ${slotsText}`);
-    } else if (format === 'singleline') {
-      lines.push(`${day.shortName}: ${slotsText}`);
-    } else {
-      lines.push(`${day.shortName}: ${slotsText}`);
-    }
+    parts.push(`${day.shortName}: ${slotsText}`);
   }
 
-  if (format === 'singleline') {
-    return lines.join(' | ');
-  }
-
-  return lines.join('\n');
+  return parts.join(' | ');
 }
