@@ -14,10 +14,12 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
   settings,
   onChangeSchedule,
 }) => {
-  // Dragging state for single-click & hold paint/erase
+  // Dragging state for single-click & continuous range drag
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<'add' | 'remove'>('add');
   const dragDayIdRef = useRef<DayOfWeek | null>(null);
+  const dragStartHourRef = useRef<number | null>(null);
+  const initialSelectionRef = useRef<number[]>([]);
 
   // Compute displayed hours
   const allHours = Array.from({ length: 24 }, (_, i) => i);
@@ -27,35 +29,41 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
 
   const orderedDays = getOrderedDays(settings.startDay);
 
-  // Apply single-hour modification
-  const setHourState = useCallback(
-    (dayId: DayOfWeek, hour: number, shouldAdd: boolean) => {
-      onChangeSchedule((prev: WeekSchedule) => {
-        const currentHours = prev[dayId] || [];
-        const hasHour = currentHours.includes(hour);
+  // Apply continuous range between startHour and currentHour
+  const applyRangeState = useCallback(
+    (dayId: DayOfWeek, currentHour: number) => {
+      if (dragStartHourRef.current === null) return;
 
-        if (shouldAdd && !hasHour) {
-          return {
-            ...prev,
-            [dayId]: [...currentHours, hour].sort((a, b) => a - b),
-          };
-        } else if (!shouldAdd && hasHour) {
-          return {
-            ...prev,
-            [dayId]: currentHours.filter((h: number) => h !== hour),
-          };
+      const start = Math.min(dragStartHourRef.current, currentHour);
+      const end = Math.max(dragStartHourRef.current, currentHour);
+      const rangeHours = visibleHours.filter((h) => h >= start && h <= end);
+      const shouldAdd = dragModeRef.current === 'add';
+
+      onChangeSchedule((prev: WeekSchedule) => {
+        const base = initialSelectionRef.current;
+        let updated: number[];
+
+        if (shouldAdd) {
+          updated = Array.from(new Set([...base, ...rangeHours])).sort((a, b) => a - b);
+        } else {
+          updated = base.filter((h) => !rangeHours.includes(h));
         }
-        return prev;
+
+        return {
+          ...prev,
+          [dayId]: updated,
+        };
       });
     },
-    [onChangeSchedule]
+    [onChangeSchedule, visibleHours]
   );
 
-  // Unified global end listener for both mouse and touch
+  // Unified global end listener
   useEffect(() => {
     const handleEnd = () => {
       isDraggingRef.current = false;
       dragDayIdRef.current = null;
+      dragStartHourRef.current = null;
     };
     window.addEventListener('pointerup', handleEnd);
     window.addEventListener('pointercancel', handleEnd);
@@ -69,8 +77,8 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     };
   }, []);
 
-  // Unified Pointer Down (Handles Mouse LMB, Touch and Pen exactly ONCE)
-  // Smart Toggle locked strictly to the clicked day
+  // Pointer Down (Mouse LMB, Touch or Pen):
+  // Smart Toggle start
   const handlePointerStart = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled) return;
 
@@ -80,33 +88,51 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
 
     isDraggingRef.current = true;
     dragModeRef.current = targetMode;
-    dragDayIdRef.current = dayId; // Lock dragging strictly to this single day
+    dragDayIdRef.current = dayId;
+    dragStartHourRef.current = hour;
+    initialSelectionRef.current = currentHours;
 
-    setHourState(dayId, hour, targetMode === 'add');
+    // Apply start hour immediately
+    applyRangeState(dayId, hour);
   };
 
-  // Mouse Enter while dragging:
-  // Strictly constrained to the initial day column (cannot bleed sideways)
+  // Mouse Enter while dragging (desktop continuous range)
   const handleMouseEnter = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled || !isDraggingRef.current) return;
-    if (dragDayIdRef.current !== dayId) return; // Prevent painting adjacent days
-    setHourState(dayId, hour, dragModeRef.current === 'add');
+    if (dragDayIdRef.current !== dayId) return; // Locked strictly to starting day
+    applyRangeState(dayId, hour);
   };
 
-  // Mobile Touch Drag Move: locked strictly to initial day
-  const handleTouchMove = (e: React.TouchEvent) => {
+  // Touch Move / Touch End range updates using elementFromPoint with closest button support
+  const handleTouchRangeAtPoint = (clientX: number, clientY: number) => {
     if (!isDraggingRef.current || !dragDayIdRef.current) return;
-    const touch = e.touches[0];
-    if (!touch) return;
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+    const target = document.elementFromPoint(clientX, clientY);
     if (!target) return;
 
-    const hourAttr = target.getAttribute('data-hour');
-    const dayAttr = target.getAttribute('data-day') as DayOfWeek | null;
+    const button = target.closest('[data-hour]');
+    if (!button) return;
+
+    const hourAttr = button.getAttribute('data-hour');
+    const dayAttr = button.getAttribute('data-day') as DayOfWeek | null;
 
     if (hourAttr && dayAttr === dragDayIdRef.current) {
-      const hour = parseInt(hourAttr, 10);
-      setHourState(dayAttr, hour, dragModeRef.current === 'add');
+      const currentHour = parseInt(hourAttr, 10);
+      applyRangeState(dayAttr, currentHour);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (touch) {
+      handleTouchRangeAtPoint(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touch = e.changedTouches[0];
+    if (touch) {
+      handleTouchRangeAtPoint(touch.clientX, touch.clientY);
     }
   };
 
@@ -120,10 +146,11 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
   return (
     <div
       onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       className="w-full select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 7 Columns: Refined day headers, strictly vertical hour columns */}
+      {/* 7 Columns */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {
           const isWeekendDisabled = settings.disableWeekends && day.isWeekend;
@@ -160,7 +187,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 )}
               </div>
 
-              {/* Hours Column: Pointer Events prevent double-firing on touch & mobile emulation */}
+              {/* Hours Column: Range dragging guarantees all hours between start and current are filled */}
               <div className="flex flex-col gap-1 w-full">
                 {visibleHours.map((hour) => {
                   const isSelected = selectedHours.includes(hour);
@@ -172,7 +199,6 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                       data-day={day.id}
                       type="button"
                       onPointerDown={(e) => {
-                        // Accept left mouse click (button 0) or any touch/pen input
                         if (e.button === 0) {
                           handlePointerStart(day.id, hour, isWeekendDisabled);
                         }
