@@ -51,21 +51,25 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     [onChangeSchedule]
   );
 
-  // Global mouse up / touch end listener
+  // Unified global end listener for both mouse and touch
   useEffect(() => {
     const handleEnd = () => {
       isDraggingRef.current = false;
       dragDayIdRef.current = null;
     };
+    window.addEventListener('pointerup', handleEnd);
+    window.addEventListener('pointercancel', handleEnd);
     window.addEventListener('mouseup', handleEnd);
     window.addEventListener('touchend', handleEnd);
     return () => {
+      window.removeEventListener('pointerup', handleEnd);
+      window.removeEventListener('pointercancel', handleEnd);
       window.removeEventListener('mouseup', handleEnd);
       window.removeEventListener('touchend', handleEnd);
     };
   }, []);
 
-  // Pointer Down (Mouse LMB or Touch):
+  // Unified Pointer Down (Handles Mouse LMB, Touch and Pen exactly ONCE)
   // Smart Toggle locked strictly to the clicked day
   const handlePointerStart = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled) return;
@@ -132,7 +136,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 isWeekendDisabled ? 'opacity-25 pointer-events-none' : ''
               }`}
             >
-              {/* Day Header: Capital first letter, lowercase rest, not bold, tall, spaced */}
+              {/* Day Header */}
               <div className="flex items-center justify-between w-full pb-1.5 mb-1.5 border-b border-slate-800">
                 <span
                   className={`text-[11px] sm:text-xs font-medium tracking-[0.16em] truncate pl-0.5 ${
@@ -156,7 +160,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 )}
               </div>
 
-              {/* Hours Column: Maximized touch area */}
+              {/* Hours Column: Pointer Events prevent double-firing on touch & mobile emulation */}
               <div className="flex flex-col gap-1 w-full">
                 {visibleHours.map((hour) => {
                   const isSelected = selectedHours.includes(hour);
@@ -167,13 +171,13 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                       data-hour={hour}
                       data-day={day.id}
                       type="button"
-                      onMouseDown={(e) => {
+                      onPointerDown={(e) => {
+                        // Accept left mouse click (button 0) or any touch/pen input
                         if (e.button === 0) {
                           handlePointerStart(day.id, hour, isWeekendDisabled);
                         }
                       }}
                       onMouseEnter={() => handleMouseEnter(day.id, hour, isWeekendDisabled)}
-                      onTouchStart={() => handlePointerStart(day.id, hour, isWeekendDisabled)}
                       className={`group relative w-full h-8 sm:h-9 rounded-lg font-mono text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30'
