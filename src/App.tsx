@@ -25,9 +25,9 @@ const PREFILLED_SCHEDULE: WeekSchedule = {
   friday: [],
   saturday: [],
   sunday: [],
-  monday: [14, 15, 16, 18, 19], // 14:17, 18:20
-  tuesday: [14, 15, 16, 17],     // 14:18
-  wednesday: [10, 11, 12, 13, 14, 15], // 10:16
+  monday: [14, 15, 16, 18, 19], // 14-17, 18-20
+  tuesday: [8],                 // 8-9
+  wednesday: [10, 11, 12, 13, 14, 15], // 10-16
 };
 
 const SCHEDULE_STORAGE_KEY = 'timeslotter_schedule_v1';
@@ -90,11 +90,11 @@ export const App: React.FC = () => {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-3 sm:p-5 space-y-4">
-        {/* Editable Availability Input with 1 Copy Button */}
+      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5 space-y-4">
+        {/* Editable Single-Line Availability Input with 1 Copy Button */}
         <AvailabilityOutput schedule={schedule} settings={settings} />
 
-        {/* Clean Single-Row Days Grid */}
+        {/* Vertical Columns Grid (Days across, hours down) */}
         <TimeGrid
           schedule={schedule}
           settings={settings}
@@ -111,9 +111,9 @@ export const App: React.FC = () => {
         onResetSettings={handleResetSettings}
       />
 
-      {/* Footer with Info Badges as requested */}
+      {/* Footer with selected preferences */}
       <footer className="border-t border-slate-900 bg-slate-950/80 py-3 px-4 text-xs text-slate-500">
-        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-3">
             <span>Me: <strong className="text-slate-300">{formatOffset(settings.myTimezoneOffset)}</strong></span>
             <span>Client: <strong className="text-slate-300">{formatOffset(settings.clientTimezoneOffset)}</strong></span>

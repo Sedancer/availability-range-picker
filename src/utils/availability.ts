@@ -58,14 +58,14 @@ function normalizeHour(h: number): number {
   return Math.floor(normalized);
 }
 
-// Format: 14:17 without adding minutes, as requested
+// Format: 8-9, 14-17 (with hyphen, no minutes)
 export function formatSlot(slot: TimeSlot, offsetDiff: number = 0): string {
   const clientStart = normalizeHour(slot.startHour + offsetDiff);
   const clientEnd = normalizeHour(slot.endHour + offsetDiff);
-  return `${clientStart}:${clientEnd}`;
+  return `${clientStart}-${clientEnd}`;
 }
 
-// Always 3 letters (Thu, Fri, Sat...) and always single line separated by pipe
+// Days separated by semicolon '; ', ranges within a day separated by comma ', '
 export function generateAvailabilityString(
   schedule: WeekSchedule,
   settings: AppSettings
@@ -101,5 +101,5 @@ export function generateAvailabilityString(
     parts.push(`${day.shortName}: ${slotsText}`);
   }
 
-  return parts.join(' | ');
+  return parts.join('; ');
 }
