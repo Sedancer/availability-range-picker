@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { TimeGrid } from './components/TimeGrid';
+import { FluidBackground } from './components/FluidBackground';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { AppSettings, WeekSchedule } from './types';
 import { formatOffset } from './utils/timezones';
@@ -81,7 +82,10 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950 font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950 font-sans relative overflow-x-hidden">
+      {/* Interactive WebGL Fluid Smoke Background */}
+      <FluidBackground />
+
       {/* Sticky Header with single input + copy button */}
       <Header
         schedule={schedule}
@@ -91,7 +95,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Container: Pure, clean vertical columns */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-2 sm:p-4">
+      <main className="relative z-10 flex-1 max-w-4xl w-full mx-auto p-2 sm:p-4">
         <TimeGrid
           schedule={schedule}
           settings={settings}
@@ -108,8 +112,8 @@ export const App: React.FC = () => {
         onResetSettings={handleResetSettings}
       />
 
-      {/* Clean Minimal Footer (No brand name, only preferences) */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-2.5 px-3 text-xs text-slate-500">
+      {/* Clean Minimal Footer */}
+      <footer className="relative z-10 border-t border-slate-900/80 bg-slate-950/70 backdrop-blur-xs py-2.5 px-3 text-xs text-slate-500">
         <div className="max-w-4xl mx-auto flex items-center justify-center gap-4 text-[11px] sm:text-xs">
           <span>Me: <strong className="text-slate-300">{formatOffset(settings.myTimezoneOffset)}</strong></span>
           <span className="text-slate-700">•</span>
