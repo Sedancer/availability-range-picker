@@ -117,7 +117,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </div>
             </div>
 
-            {/* 2. Sleep Time Filter (Primary) */}
+            {/* 2. Sleep Filter (No double borders, consistent single-border inputs) */}
             <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 font-semibold text-emerald-400">
@@ -141,9 +141,9 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </div>
 
               {settings.sleepEnabled && (
-                <div className="grid grid-cols-2 gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">
+                    <label className="block text-[11px] text-slate-400 mb-1">
                       Sleep:
                     </label>
                     <select
@@ -154,7 +154,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           sleepStartHour: parseInt(e.target.value, 10),
                         })
                       }
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 cursor-pointer"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
                     >
                       {hoursList.map((h) => (
                         <option key={`sleep-start-${h}`} value={h}>
@@ -165,7 +165,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">
+                    <label className="block text-[11px] text-slate-400 mb-1">
                       Wake up:
                     </label>
                     <select
@@ -176,7 +176,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           sleepEndHour: parseInt(e.target.value, 10),
                         })
                       }
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 cursor-pointer"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
                     >
                       {hoursList.map((h) => (
                         <option key={`sleep-end-${h}`} value={h}>
@@ -189,11 +189,11 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               )}
             </div>
 
-            {/* 3. First Day of Week (Primary) */}
+            {/* 3. First Day (Primary) */}
             <div className="space-y-2 pt-3 border-t border-slate-800/80">
               <div className="flex items-center gap-1.5 font-semibold text-emerald-400">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>First Day of Week</span>
+                <span>First Day</span>
               </div>
 
               <div className="grid grid-cols-7 gap-1">
