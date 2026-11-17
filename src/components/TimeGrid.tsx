@@ -14,14 +14,12 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
   settings,
   onChangeSchedule,
 }) => {
-  // Mouse dragging state
+  // Dragging state for single-click & hold paint/erase
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<'add' | 'remove'>('add');
   const dragDayIdRef = useRef<DayOfWeek | null>(null);
-  const dragStartHourRef = useRef<number | null>(null);
-  const initialSelectionOnDragStartRef = useRef<number[]>([]);
 
-  // Compute displayed hours (e.g. 8..21 or 0..23)
+  // Compute displayed hours
   const allHours = Array.from({ length: 24 }, (_, i) => i);
   const visibleHours = settings.sleepEnabled
     ? allHours.filter((h) => !isSleepHour(h, settings.sleepStartHour, settings.sleepEndHour))
@@ -53,90 +51,56 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     [onChangeSchedule]
   );
 
-  // Window mouse up listener to terminate dragging anywhere
+  // Global mouse up / touch end listener
   useEffect(() => {
-    const handleMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
-        dragDayIdRef.current = null;
-        dragStartHourRef.current = null;
-      }
+    const handleEnd = () => {
+      isDraggingRef.current = false;
+      dragDayIdRef.current = null;
     };
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchend', handleEnd);
+    return () => {
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchend', handleEnd);
+    };
   }, []);
 
-  // Desktop Mouse Down: LMB = paint green downwards; RMB = erase point
-  const handleMouseDown = (
-    e: React.MouseEvent,
-    dayId: DayOfWeek,
-    hour: number,
-    isDisabled: boolean
-  ) => {
+  // Pointer Down (Mouse LMB or Touch):
+  // Smart Toggle: if already selected -> erase mode; if not selected -> add mode
+  const handlePointerStart = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled) return;
 
-    if (e.button === 0) {
-      // Left Click: start vertical canvas paint range
-      isDraggingRef.current = true;
-      dragModeRef.current = 'add';
-      dragDayIdRef.current = dayId;
-      dragStartHourRef.current = hour;
-      initialSelectionOnDragStartRef.current = schedule[dayId] || [];
+    const currentHours = schedule[dayId] || [];
+    const isCurrentlySelected = currentHours.includes(hour);
+    const targetMode = isCurrentlySelected ? 'remove' : 'add';
 
-      setHourState(dayId, hour, true);
-    } else if (e.button === 2) {
-      // Right Click: erase point
-      e.preventDefault();
-      isDraggingRef.current = true;
-      dragModeRef.current = 'remove';
-      dragDayIdRef.current = dayId;
-      dragStartHourRef.current = hour;
+    isDraggingRef.current = true;
+    dragModeRef.current = targetMode;
+    dragDayIdRef.current = dayId;
 
-      setHourState(dayId, hour, false);
-    }
+    setHourState(dayId, hour, targetMode === 'add');
   };
 
-  // Canvas Drag Over downwards/upwards within the day column
-  const handleMouseEnter = (dayId: DayOfWeek, currentHour: number, isDisabled: boolean) => {
+  // Mouse Enter while dragging
+  const handleMouseEnter = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled || !isDraggingRef.current) return;
-
-    if (dragModeRef.current === 'add') {
-      if (dragDayIdRef.current === dayId && dragStartHourRef.current !== null) {
-        // Continuous range between startHour and currentHour vertically
-        const start = Math.min(dragStartHourRef.current, currentHour);
-        const end = Math.max(dragStartHourRef.current, currentHour);
-
-        const rangeHours = visibleHours.filter((h) => h >= start && h <= end);
-
-        onChangeSchedule((prev: WeekSchedule) => {
-          const base = initialSelectionOnDragStartRef.current;
-          const merged = Array.from(new Set([...base, ...rangeHours])).sort((a, b) => a - b);
-          return {
-            ...prev,
-            [dayId]: merged,
-          };
-        });
-      } else {
-        setHourState(dayId, currentHour, true);
-      }
-    } else if (dragModeRef.current === 'remove') {
-      setHourState(dayId, currentHour, false);
-    }
+    setHourState(dayId, hour, dragModeRef.current === 'add');
   };
 
-  // Mobile Touch Drag Move: allows smooth 1-finger painting vertically
-  const handleTouchMove = (e: React.TouchEvent, dayId: DayOfWeek) => {
+  // Mobile Touch Drag Move: continuous paint/erase as finger slides over hours
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current) return;
     const touch = e.touches[0];
     if (!touch) return;
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!target) return;
 
     const hourAttr = target.getAttribute('data-hour');
-    const targetDayId = target.getAttribute('data-day');
+    const dayAttr = target.getAttribute('data-day') as DayOfWeek | null;
 
-    if (hourAttr && targetDayId === dayId) {
+    if (hourAttr && dayAttr) {
       const hour = parseInt(hourAttr, 10);
-      setHourState(dayId, hour, true);
+      setHourState(dayAttr, hour, dragModeRef.current === 'add');
     }
   };
 
@@ -149,14 +113,12 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <div
-      className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl select-none overflow-x-auto touch-pan-x"
-      onContextMenu={(e) => {
-        // Block browser context menu for right-click erasing
-        e.preventDefault();
-      }}
+      onTouchMove={handleTouchMove}
+      className="w-full select-none"
+      onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 7 Columns: Each day is a vertical column, hours go downwards (8, 9, 10... 21) */}
-      <div className="grid grid-cols-7 gap-2 min-w-[500px] sm:min-w-full">
+      {/* 7 Columns: Minimal borderless columns, maximized button size */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {
           const isWeekendDisabled = settings.disableWeekends && day.isWeekend;
           const selectedHours = isWeekendDisabled ? [] : (schedule[day.id] || []);
@@ -164,19 +126,15 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
           return (
             <div
               key={day.id}
-              className={`flex flex-col items-center rounded-xl p-1.5 border transition-all ${
-                isWeekendDisabled
-                  ? 'opacity-30 border-slate-800/40 bg-slate-950/40 pointer-events-none'
-                  : day.isWeekend
-                  ? 'border-rose-900/40 bg-rose-950/10'
-                  : 'border-slate-800/80 bg-slate-950/40'
+              className={`flex flex-col items-center min-w-0 transition-opacity ${
+                isWeekendDisabled ? 'opacity-25 pointer-events-none' : ''
               }`}
             >
               {/* Day Header (3 letters + Clear Button) */}
-              <div className="flex items-center justify-between w-full px-1 py-1 mb-2 border-b border-slate-800/60">
+              <div className="flex items-center justify-between w-full pb-1.5 mb-1 border-b border-slate-800">
                 <span
-                  className={`font-mono text-xs font-bold tracking-wider ${
-                    day.isWeekend ? 'text-rose-400' : 'text-slate-200'
+                  className={`font-mono text-xs sm:text-sm font-bold tracking-tight truncate pl-0.5 ${
+                    day.isWeekend ? 'text-rose-400' : 'text-slate-300'
                   }`}
                 >
                   {day.shortName}
@@ -187,20 +145,17 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                     type="button"
                     onClick={() => handleClearDay(day.id)}
                     title={`Clear ${day.shortName}`}
-                    className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                    className="p-1 text-slate-500 hover:text-rose-400 rounded-md transition-colors cursor-pointer"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </button>
                 ) : (
-                  <Ban className="w-3.5 h-3.5 text-slate-600" />
+                  <Ban className="w-3 h-3 text-slate-600" />
                 )}
               </div>
 
-              {/* Hours Column: Hours going DOWNWARDS (8, 9, 10 ... 21) */}
-              <div
-                onTouchMove={(e) => handleTouchMove(e, day.id)}
-                className="flex flex-col gap-1 w-full"
-              >
+              {/* Hours Column: Maximized touch area, no double borders */}
+              <div className="flex flex-col gap-1 w-full">
                 {visibleHours.map((hour) => {
                   const isSelected = selectedHours.includes(hour);
 
@@ -210,17 +165,17 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                       data-hour={hour}
                       data-day={day.id}
                       type="button"
-                      onMouseDown={(e) => handleMouseDown(e, day.id, hour, isWeekendDisabled)}
-                      onMouseEnter={() => handleMouseEnter(day.id, hour, isWeekendDisabled)}
-                      onTouchStart={() => {
-                        if (!isWeekendDisabled) {
-                          setHourState(day.id, hour, !isSelected);
+                      onMouseDown={(e) => {
+                        if (e.button === 0) {
+                          handlePointerStart(day.id, hour, isWeekendDisabled);
                         }
                       }}
-                      className={`group relative w-full h-7 sm:h-8 rounded-lg font-mono text-[11px] sm:text-xs flex items-center justify-center transition-all cursor-pointer ${
+                      onMouseEnter={() => handleMouseEnter(day.id, hour, isWeekendDisabled)}
+                      onTouchStart={() => handlePointerStart(day.id, hour, isWeekendDisabled)}
+                      className={`group relative w-full h-8 sm:h-9 rounded-lg font-mono text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30 ring-1 ring-emerald-400'
-                          : 'bg-slate-800/70 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
                       }`}
                     >
                       <span className="pointer-events-none">{hour}</span>

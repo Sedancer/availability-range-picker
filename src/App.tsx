@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { TimeGrid } from './components/TimeGrid';
-import { AvailabilityOutput } from './components/AvailabilityOutput';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { AppSettings, WeekSchedule } from './types';
 import { formatOffset } from './utils/timezones';
@@ -83,18 +82,16 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950 font-sans">
-      {/* Minimal Header */}
+      {/* Sticky Header with single input + copy button */}
       <Header
+        schedule={schedule}
+        settings={settings}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onClearAll={handleClearAllSchedule}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5 space-y-4">
-        {/* Editable Single-Line Availability Input with 1 Copy Button */}
-        <AvailabilityOutput schedule={schedule} settings={settings} />
-
-        {/* Vertical Columns Grid (Days across, hours down) */}
+      {/* Main Container: Pure, clean vertical columns */}
+      <main className="flex-1 max-w-4xl w-full mx-auto p-2 sm:p-4">
         <TimeGrid
           schedule={schedule}
           settings={settings}
@@ -111,21 +108,18 @@ export const App: React.FC = () => {
         onResetSettings={handleResetSettings}
       />
 
-      {/* Footer with selected preferences */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-3 px-4 text-xs text-slate-500">
-        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-3">
-            <span>Me: <strong className="text-slate-300">{formatOffset(settings.myTimezoneOffset)}</strong></span>
-            <span>Client: <strong className="text-slate-300">{formatOffset(settings.clientTimezoneOffset)}</strong></span>
-            <span>
-              {settings.sleepEnabled
-                ? `Sleep: ${String(settings.sleepStartHour).padStart(2, '0')}:00-${String(settings.sleepEndHour).padStart(2, '0')}:00`
-                : '24 Hours'}
-            </span>
-          </div>
-          <div>
-            <span>TimeSlotter</span>
-          </div>
+      {/* Clean Minimal Footer (No brand name, only preferences) */}
+      <footer className="border-t border-slate-900 bg-slate-950/80 py-2.5 px-3 text-xs text-slate-500">
+        <div className="max-w-4xl mx-auto flex items-center justify-center gap-4 text-[11px] sm:text-xs">
+          <span>Me: <strong className="text-slate-300">{formatOffset(settings.myTimezoneOffset)}</strong></span>
+          <span className="text-slate-700">•</span>
+          <span>Client: <strong className="text-slate-300">{formatOffset(settings.clientTimezoneOffset)}</strong></span>
+          <span className="text-slate-700">•</span>
+          <span>
+            {settings.sleepEnabled
+              ? `Sleep: ${String(settings.sleepStartHour).padStart(2, '0')}:00-${String(settings.sleepEndHour).padStart(2, '0')}:00`
+              : '24 Hours'}
+          </span>
         </div>
       </footer>
     </div>
