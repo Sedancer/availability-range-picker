@@ -1,15 +1,17 @@
 import type { DayConfig, DayOfWeek, AppSettings, WeekSchedule } from '../types';
 
+// Natural calendar week starting from Monday for selection lists
 export const ALL_DAYS: DayConfig[] = [
+  { id: 'monday', name: 'Monday', shortName: 'Mon', isWeekend: false },
+  { id: 'tuesday', name: 'Tuesday', shortName: 'Tue', isWeekend: false },
+  { id: 'wednesday', name: 'Wednesday', shortName: 'Wed', isWeekend: false },
   { id: 'thursday', name: 'Thursday', shortName: 'Thu', isWeekend: false },
   { id: 'friday', name: 'Friday', shortName: 'Fri', isWeekend: false },
   { id: 'saturday', name: 'Saturday', shortName: 'Sat', isWeekend: true },
   { id: 'sunday', name: 'Sunday', shortName: 'Sun', isWeekend: true },
-  { id: 'monday', name: 'Monday', shortName: 'Mon', isWeekend: false },
-  { id: 'tuesday', name: 'Tuesday', shortName: 'Tue', isWeekend: false },
-  { id: 'wednesday', name: 'Wednesday', shortName: 'Wed', isWeekend: false },
 ];
 
+// Returns 7 days starting from whatever startDay is configured (defaults to Thursday)
 export function getOrderedDays(startDay: DayOfWeek): DayConfig[] {
   const startIndex = ALL_DAYS.findIndex((d) => d.id === startDay);
   if (startIndex === -1) return ALL_DAYS;
