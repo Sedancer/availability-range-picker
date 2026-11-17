@@ -117,7 +117,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
       className="w-full select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 7 Columns: Minimal borderless columns, maximized button size */}
+      {/* 7 Columns: Distinct day titles with letter spacing, maximized button size */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {
           const isWeekendDisabled = settings.disableWeekends && day.isWeekend;
@@ -130,11 +130,11 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 isWeekendDisabled ? 'opacity-25 pointer-events-none' : ''
               }`}
             >
-              {/* Day Header (3 letters + Clear Button) */}
-              <div className="flex items-center justify-between w-full pb-1.5 mb-1 border-b border-slate-800">
+              {/* Day Header (Larger font, tracking-widest, distinct contrast) */}
+              <div className="flex items-center justify-between w-full pb-1.5 mb-1.5 border-b border-slate-800">
                 <span
-                  className={`font-mono text-xs sm:text-sm font-bold tracking-tight truncate pl-0.5 ${
-                    day.isWeekend ? 'text-rose-400' : 'text-slate-300'
+                  className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest truncate ${
+                    day.isWeekend ? 'text-rose-400' : 'text-slate-100'
                   }`}
                 >
                   {day.shortName}
@@ -154,7 +154,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 )}
               </div>
 
-              {/* Hours Column: Maximized touch area, no double borders */}
+              {/* Hours Column: Maximized touch area */}
               <div className="flex flex-col gap-1 w-full">
                 {visibleHours.map((hour) => {
                   const isSelected = selectedHours.includes(hour);
