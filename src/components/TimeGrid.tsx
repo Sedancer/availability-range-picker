@@ -66,7 +66,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
   }, []);
 
   // Pointer Down (Mouse LMB or Touch):
-  // Smart Toggle: if already selected -> erase mode; if not selected -> add mode
+  // Smart Toggle locked strictly to the clicked day
   const handlePointerStart = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled) return;
 
@@ -76,20 +76,22 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
 
     isDraggingRef.current = true;
     dragModeRef.current = targetMode;
-    dragDayIdRef.current = dayId;
+    dragDayIdRef.current = dayId; // Lock dragging strictly to this single day
 
     setHourState(dayId, hour, targetMode === 'add');
   };
 
-  // Mouse Enter while dragging
+  // Mouse Enter while dragging:
+  // Strictly constrained to the initial day column (cannot bleed sideways)
   const handleMouseEnter = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
     if (isDisabled || !isDraggingRef.current) return;
+    if (dragDayIdRef.current !== dayId) return; // Prevent painting adjacent days
     setHourState(dayId, hour, dragModeRef.current === 'add');
   };
 
-  // Mobile Touch Drag Move: continuous paint/erase as finger slides over hours
+  // Mobile Touch Drag Move: locked strictly to initial day
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingRef.current) return;
+    if (!isDraggingRef.current || !dragDayIdRef.current) return;
     const touch = e.touches[0];
     if (!touch) return;
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -98,7 +100,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     const hourAttr = target.getAttribute('data-hour');
     const dayAttr = target.getAttribute('data-day') as DayOfWeek | null;
 
-    if (hourAttr && dayAttr) {
+    if (hourAttr && dayAttr === dragDayIdRef.current) {
       const hour = parseInt(hourAttr, 10);
       setHourState(dayAttr, hour, dragModeRef.current === 'add');
     }
@@ -117,7 +119,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
       className="w-full select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 7 Columns: Distinct day titles with letter spacing, maximized button size */}
+      {/* 7 Columns: Refined day headers, strictly vertical hour columns */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {
           const isWeekendDisabled = settings.disableWeekends && day.isWeekend;
@@ -130,11 +132,11 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                 isWeekendDisabled ? 'opacity-25 pointer-events-none' : ''
               }`}
             >
-              {/* Day Header (Larger font, tracking-widest, distinct contrast) */}
+              {/* Day Header: Capital first letter, lowercase rest, not bold, tall, spaced */}
               <div className="flex items-center justify-between w-full pb-1.5 mb-1.5 border-b border-slate-800">
                 <span
-                  className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest truncate ${
-                    day.isWeekend ? 'text-rose-400' : 'text-slate-100'
+                  className={`text-[11px] sm:text-xs font-medium tracking-[0.16em] truncate pl-0.5 ${
+                    day.isWeekend ? 'text-rose-400' : 'text-slate-300'
                   }`}
                 >
                   {day.shortName}
