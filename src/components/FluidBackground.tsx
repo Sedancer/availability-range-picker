@@ -1,13 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 
 /**
- * WebGL Fluid Simulation – Navier-Stokes fluid & smoke solver.
- * Uses WebGL1 with OES_texture_half_float for broad compatibility.
+ * WebGL Fluid Simulation – High-Speed Neon Laser Beam Solver.
  * Features:
- *   - Luminous emerald, cyan, and violet color palette matching TimeSlotter.
- *   - Ambient gentle swirling clouds so the background is always alive.
- *   - Interactive smoke trails on pointer movement and click/touch bursts.
- *   - Correct mathematical dissipation (1 / (1 + diss * dt)) preventing instant decay.
+ *   - Razor-thin laser beam profile (pow exp curve with tight radius).
+ *   - 2.5x higher velocity impulse for rapid, snappy laser darting.
+ *   - Fast dissipation (no lingering cloudy haze or diffuse softness).
+ *   - Vibrant laser colors: electric cyan, emerald, cyber violet, and neon amber.
+ *   - High-speed ambient laser pulses cutting across the dark grid.
  */
 export const FluidBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -45,12 +45,12 @@ export const FluidBackground: React.FC = () => {
       SIM: isMobile ? 64 : 128,
       DYE: isMobile ? 256 : 512,
       PRESSURE_ITERS: isMobile ? 12 : 20,
-      DENSITY_DISS: 0.85,  // gentle dissipation: lingers beautifully
-      VEL_DISS: 0.2,       // smooth, silky fluid momentum
+      DENSITY_DISS: 2.8,   // Fast dissipation: laser trail fades swiftly, no lingering fog
+      VEL_DISS: 0.05,      // Very low friction: laser shoots through with high speed
       PRESSURE: 0.8,
-      CURL: 32,            // nice swirling vortices
-      SPLAT_R: 0.0045,     // lush, visible cloud radius
-      SPLAT_F: 6000,       // responsive impulse
+      CURL: 42,            // Snappy micro-vortices
+      SPLAT_R: 0.00075,    // Razor-thin laser beam radius (5x narrower than smoke)
+      SPLAT_F: 15000,      // High-speed energetic impulse
     };
 
     // ── Shader helpers ───────────────────────────────────────────────────────
@@ -109,17 +109,20 @@ export const FluidBackground: React.FC = () => {
       uniform float value;
       void main(){ gl_FragColor = value * texture2D(uTex, vUv); }`;
 
+    // Laser display shader: crisp coherent beam, sharp falloff, high intensity
     const DISPLAY_FS = `
       precision highp float;
       varying vec2 vUv;
       uniform sampler2D uTex;
       void main(){
         vec3 c = texture2D(uTex, vUv).rgb;
-        float a = max(c.r, max(c.g, c.b));
-        // Luminous smoke display blending with the dark theme
-        gl_FragColor = vec4(c, clamp(a * 0.85, 0.0, 1.0));
+        float maxC = max(c.r, max(c.g, c.b));
+        // Razor-sharp threshold with neon laser core
+        float alpha = smoothstep(0.03, 0.45, maxC);
+        gl_FragColor = vec4(c * 1.5, alpha);
       }`;
 
+    // Sharp laser splat: power curve gives a hot focused center line with minimal diffuse blur
     const SPLAT_FS = `
       precision highp float;
       varying vec2 vUv;
@@ -132,7 +135,10 @@ export const FluidBackground: React.FC = () => {
         vec2 p = vUv - point;
         p.x *= aspect;
         vec3 base = texture2D(uTarget, vUv).rgb;
-        vec3 splat = exp(-dot(p, p) / radius) * color;
+        float d2 = dot(p, p);
+        float beam = exp(-d2 / radius);
+        beam = pow(beam, 1.8); // sharp laser edge
+        vec3 splat = beam * color;
         gl_FragColor = vec4(base + splat, 1.0);
       }`;
 
@@ -355,15 +361,18 @@ export const FluidBackground: React.FC = () => {
     initFBOs();
     window.addEventListener('resize', resizeCanvas);
 
-    // ── Luminous Color Generator ─────────────────────────────────────────────
-    let colorPhase = Math.random() * 10;
-    function nextColor(): [number, number, number] {
-      colorPhase += 0.12;
-      // Cycles gracefully through emerald, turquoise, sky-blue, purple, and gold
-      const r = (Math.sin(colorPhase * 0.5) * 0.5 + 0.5) * 0.45;
-      const g = (Math.sin(colorPhase * 0.4 + 1.5) * 0.5 + 0.5) * 0.85 + 0.15;
-      const b = (Math.cos(colorPhase * 0.3 + 0.5) * 0.5 + 0.5) * 0.90 + 0.10;
-      return [r, g, b];
+    // ── Vivid Laser Color Palette ────────────────────────────────────────────
+    const LASER_PALETTE: [number, number, number][] = [
+      [0.0, 0.95, 1.0],   // Electric Laser Cyan
+      [0.0, 1.0, 0.55],   // Vivid Laser Emerald
+      [0.85, 0.20, 1.0],  // Cyber Laser Violet
+      [0.20, 0.65, 1.0],  // Deep Sky Laser
+      [1.0, 0.60, 0.05],  // Neon Amber
+    ];
+    let colorIdx = 0;
+    function nextLaserColor(): [number, number, number] {
+      colorIdx = (colorIdx + 1) % LASER_PALETTE.length;
+      return LASER_PALETTE[colorIdx];
     }
 
     // ── Splat function ───────────────────────────────────────────────────────
@@ -384,7 +393,7 @@ export const FluidBackground: React.FC = () => {
       blit(vel.write);
       vel.swap();
 
-      // 2. Splat dye color
+      // 2. Splat laser dye color
       gl!.viewport(0, 0, dye.width, dye.height);
       gl!.uniform1i(pSplat.u.uTarget, dye.read.bind(0));
       gl!.uniform3f(pSplat.u.color, color[0], color[1], color[2]);
@@ -392,41 +401,34 @@ export const FluidBackground: React.FC = () => {
       dye.swap();
     }
 
-    // ── Ambient Autonomous Flow (so background is always alive) ──────────────
+    // ── Fast Ambient Laser Streaks ───────────────────────────────────────────
     let ambientTimer = 0;
     function tickAmbient() {
       ambientTimer++;
-      // Every ~90 frames (~1.5s), create an organic gentle drift
-      if (ambientTimer % 90 === 0 && fboReady) {
-        const x = 0.2 + Math.random() * 0.6;
-        const y = 0.2 + Math.random() * 0.6;
+      // Every ~75 frames (~1.2s), shoot a fast razor-thin laser streak
+      if (ambientTimer % 75 === 0 && fboReady) {
+        const x = 0.15 + Math.random() * 0.7;
+        const y = 0.15 + Math.random() * 0.7;
         const angle = Math.random() * Math.PI * 2;
-        const speed = 1200 + Math.random() * 1000;
+        const speed = 4000 + Math.random() * 3000;
         const dx = Math.cos(angle) * speed;
         const dy = Math.sin(angle) * speed;
-        splat(x, y, dx, dy, nextColor(), CFG.SPLAT_R * 1.5);
+        splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R * 1.3);
       }
     }
 
-    // ── Initial Burst: multiple vivid smoke blooms ──────────────────────────
-    function spawnInitialBursts() {
+    // Initial swift laser flashes on mount
+    setTimeout(() => {
       if (!fboReady) return;
-      const positions = [
-        { x: 0.25, y: 0.35, dx: 1400, dy: -800 },
-        { x: 0.75, y: 0.40, dx: -1200, dy: 1000 },
-        { x: 0.50, y: 0.75, dx: 800, dy: -1400 },
-        { x: 0.30, y: 0.80, dx: -900, dy: -1100 },
-        { x: 0.70, y: 0.70, dx: 1100, dy: 700 },
-      ];
-      positions.forEach((p, idx) => {
+      for (let i = 0; i < 4; i++) {
         setTimeout(() => {
-          splat(p.x, p.y, p.dx, p.dy, nextColor(), CFG.SPLAT_R * 1.8);
-        }, idx * 120);
-      });
-    }
-
-    // Trigger on mount after brief init
-    setTimeout(spawnInitialBursts, 100);
+          const x = 0.2 + Math.random() * 0.6;
+          const y = 0.2 + Math.random() * 0.6;
+          const angle = Math.random() * Math.PI * 2;
+          splat(x, y, Math.cos(angle) * 5000, Math.sin(angle) * 5000, nextLaserColor());
+        }, i * 90);
+      }
+    }, 80);
 
     // ── Pointer Interaction ──────────────────────────────────────────────────
     let lastX = 0, lastY = 0, hasMoved = false;
@@ -446,8 +448,8 @@ export const FluidBackground: React.FC = () => {
       const dx = (x - lastX) * CFG.SPLAT_F;
       const dy = (y - lastY) * CFG.SPLAT_F;
 
-      if (Math.abs(dx) > 0.04 || Math.abs(dy) > 0.04) {
-        splat(x, y, dx, dy, nextColor());
+      if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
+        splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R);
       }
       lastX = x;
       lastY = y;
@@ -460,11 +462,12 @@ export const FluidBackground: React.FC = () => {
       lastX = x;
       lastY = y;
       hasMoved = true;
-      // Burst on tap/click
+
+      // Swift laser burst on click
       const angle = Math.random() * Math.PI * 2;
-      const dx = Math.cos(angle) * 2500;
-      const dy = Math.sin(angle) * 2500;
-      splat(x, y, dx, dy, nextColor(), CFG.SPLAT_R * 2.2);
+      const dx = Math.cos(angle) * 6000;
+      const dy = Math.sin(angle) * 6000;
+      splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R * 1.6);
     }
 
     const onMouse = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
@@ -493,7 +496,6 @@ export const FluidBackground: React.FC = () => {
       const dt = Math.min((now - lastTime) / 1000, 0.02);
       lastTime = now;
 
-      // Periodic ambient gentle swirl
       tickAmbient();
 
       // 1. Curl
@@ -551,20 +553,19 @@ export const FluidBackground: React.FC = () => {
       blit(vel.write);
       vel.swap();
 
-      // 7. Advect velocity (stable decay formula)
+      // 7. Advect velocity (low friction -> high speed flow)
       gl!.useProgram(pAdvect.p);
       setupAttrib(pAdvect.p);
       gl!.uniform2f(pAdvect.u.texel, vel.texelX, vel.texelY);
       gl!.uniform1i(pAdvect.u.uVel, vel.read.bind(0));
       gl!.uniform1i(pAdvect.u.uSrc, vel.read.bind(0));
       gl!.uniform1f(pAdvect.u.dt, dt);
-      // Proper stable dissipation: 1 / (1 + diss * dt)
       const velDiss = 1.0 / (1.0 + CFG.VEL_DISS * dt);
       gl!.uniform1f(pAdvect.u.diss, velDiss);
       blit(vel.write);
       vel.swap();
 
-      // 8. Advect dye / color (stable decay formula)
+      // 8. Advect laser beam (fast decay -> tight tracer without persistent haze)
       gl!.viewport(0, 0, dye.width, dye.height);
       gl!.uniform2f(pAdvect.u.texel, dye.texelX, dye.texelY);
       gl!.uniform1i(pAdvect.u.uVel, vel.read.bind(0));
@@ -574,7 +575,7 @@ export const FluidBackground: React.FC = () => {
       blit(dye.write);
       dye.swap();
 
-      // 9. Display to screen
+      // 9. Display laser
       gl!.viewport(0, 0, canvas!.width, canvas!.height);
       gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
       gl!.useProgram(pDisplay.p);

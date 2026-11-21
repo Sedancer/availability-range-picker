@@ -112,6 +112,7 @@ export const App: React.FC = () => {
       <Header
         schedule={schedule}
         settings={settings}
+        onChangeSchedule={setSchedule}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onClearAll={handleClearAllSchedule}
       />

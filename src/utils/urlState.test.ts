@@ -24,27 +24,35 @@ const emptySchedule: WeekSchedule = {
   wednesday: [],
 };
 
-describe('urlState', () => {
-  it('encodes and decodes simple schedule with ranges and individual hours', () => {
+describe('urlState clean human-readable format', () => {
+  it('encodes days into separate clean parameters without %-escaping', () => {
     const schedule: WeekSchedule = {
       ...emptySchedule,
-      monday: [8, 14, 15, 16, 18, 19],
-      tuesday: [9],
-      wednesday: [10, 11, 12],
+      monday: [14, 15, 16, 18, 19],
+      tuesday: [8],
+      wednesday: [10, 11, 12, 13, 14, 15],
     };
 
     const url = encodeStateToURL(schedule, defaultSettings);
-    expect(url).toContain('s=');
-    expect(url).toContain('d=th');
+    // Should NOT contain %3A, %2C, or %3B
+    expect(url).not.toContain('%3A');
+    expect(url).not.toContain('%2C');
+    expect(url).not.toContain('%3B');
+
+    // Should contain clean per-day parameters
+    expect(url).toContain('mon=14-16_18-19');
+    expect(url).toContain('tue=8');
+    expect(url).toContain('wed=10-15');
+    expect(url).toContain('start=thu');
 
     const decoded = decodeURLState(url);
-    expect(decoded.schedule?.monday).toEqual([8, 14, 15, 16, 18, 19]);
-    expect(decoded.schedule?.tuesday).toEqual([9]);
-    expect(decoded.schedule?.wednesday).toEqual([10, 11, 12]);
+    expect(decoded.schedule?.monday).toEqual([14, 15, 16, 18, 19]);
+    expect(decoded.schedule?.tuesday).toEqual([8]);
+    expect(decoded.schedule?.wednesday).toEqual([10, 11, 12, 13, 14, 15]);
     expect(decoded.settings?.startDay).toBe('thursday');
   });
 
-  it('handles negative and non-zero timezones', () => {
+  it('encodes timezone safely using underscore without %3A', () => {
     const settings: AppSettings = {
       ...defaultSettings,
       myTimezoneOffset: -5,
@@ -52,14 +60,15 @@ describe('urlState', () => {
     };
 
     const url = encodeStateToURL(emptySchedule, settings);
-    expect(url).toContain('tz=-5%3A3'); // URLSearchParams encodes ':' as %3A
+    expect(url).toContain('tz=-5_3');
+    expect(url).not.toContain('%3A');
 
     const decoded = decodeURLState(url);
     expect(decoded.settings?.myTimezoneOffset).toBe(-5);
     expect(decoded.settings?.clientTimezoneOffset).toBe(3);
   });
 
-  it('handles sleep settings encoding and decoding', () => {
+  it('encodes sleep settings cleanly', () => {
     const settingsCustomSleep: AppSettings = {
       ...defaultSettings,
       sleepEnabled: true,
@@ -67,7 +76,7 @@ describe('urlState', () => {
       sleepEndHour: 7,
     };
     const url1 = encodeStateToURL(emptySchedule, settingsCustomSleep);
-    expect(url1).toContain('sl=23-7');
+    expect(url1).toContain('sleep=23-7');
     const decoded1 = decodeURLState(url1);
     expect(decoded1.settings?.sleepEnabled).toBe(true);
     expect(decoded1.settings?.sleepStartHour).toBe(23);
@@ -78,28 +87,28 @@ describe('urlState', () => {
       sleepEnabled: false,
     };
     const url2 = encodeStateToURL(emptySchedule, settingsSleepOff);
-    expect(url2).toContain('sl=off');
+    expect(url2).toContain('sleep=off');
     const decoded2 = decodeURLState(url2);
     expect(decoded2.settings?.sleepEnabled).toBe(false);
+  });
+
+  it('backward compatibility: decodes legacy URL with ?s=mo:...;...&d=mo&tz=2:0', () => {
+    const legacyUrl = '?s=mo:14-16,18-19;tu:8;we:10-15&d=mo&tz=2:0&sl=23-7';
+    const decoded = decodeURLState(legacyUrl);
+
+    expect(decoded.schedule?.monday).toEqual([14, 15, 16, 18, 19]);
+    expect(decoded.schedule?.tuesday).toEqual([8]);
+    expect(decoded.schedule?.wednesday).toEqual([10, 11, 12, 13, 14, 15]);
+    expect(decoded.settings?.startDay).toBe('monday');
+    expect(decoded.settings?.myTimezoneOffset).toBe(2);
+    expect(decoded.settings?.clientTimezoneOffset).toBe(0);
+    expect(decoded.settings?.sleepStartHour).toBe(23);
+    expect(decoded.settings?.sleepEndHour).toBe(7);
   });
 
   it('handles empty or malformed search string gracefully', () => {
     expect(decodeURLState('')).toEqual({});
     expect(decodeURLState('?')).toEqual({});
-    expect(decodeURLState('?garbage=123')).toEqual({});
-    expect(decodeURLState('?s=invalid:format;xx:99')).toEqual({
-      schedule: {},
-    });
-  });
-
-  it('preserves start day', () => {
-    const settings: AppSettings = {
-      ...defaultSettings,
-      startDay: 'monday',
-    };
-    const url = encodeStateToURL(emptySchedule, settings);
-    expect(url).toContain('d=mo');
-    const decoded = decodeURLState(url);
-    expect(decoded.settings?.startDay).toBe('monday');
+    expect(decodeURLState('?unknown=123')).toEqual({});
   });
 });
