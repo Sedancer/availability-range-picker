@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { TimeGrid } from './components/TimeGrid';
@@ -6,6 +6,7 @@ import { FluidBackground } from './components/FluidBackground';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { AppSettings, WeekSchedule } from './types';
 import { formatOffset } from './utils/timezones';
+import { decodeURLState, pushStateToURL } from './utils/urlState';
 
 const DEFAULT_SETTINGS: AppSettings = {
   startDay: 'thursday',
@@ -19,7 +20,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   disableWeekends: false,
 };
 
-// Pre-filled Monday, Tuesday, Wednesday
+const EMPTY_SCHEDULE: WeekSchedule = {
+  thursday: [], friday: [], saturday: [], sunday: [],
+  monday: [], tuesday: [], wednesday: [],
+};
+
+// Pre-filled example schedule (shown when no URL state and persistSchedule is off)
 const PREFILLED_SCHEDULE: WeekSchedule = {
   thursday: [],
   friday: [],
@@ -39,29 +45,58 @@ export const App: React.FC = () => {
   );
 
   const [schedule, setSchedule] = useState<WeekSchedule>(() => {
+    // 1. Try to restore from URL first
+    const urlState = decodeURLState(window.location.search);
+    if (urlState.schedule && Object.keys(urlState.schedule).length > 0) {
+      return { ...EMPTY_SCHEDULE, ...urlState.schedule };
+    }
+    // 2. Then from localStorage if persistSchedule is enabled
     if (settings.persistSchedule) {
       try {
         const item = window.localStorage.getItem(SCHEDULE_STORAGE_KEY);
-        return item ? JSON.parse(item) : PREFILLED_SCHEDULE;
-      } catch (err) {
-        console.warn('Error reading schedule from localStorage:', err);
-        return PREFILLED_SCHEDULE;
+        if (item) return JSON.parse(item);
+      } catch {
+        // ignore
       }
     }
     return PREFILLED_SCHEDULE;
   });
 
+  // Apply URL settings on mount (tz, startDay, sleep) — once only
+  const urlSettingsApplied = useRef(false);
+  useEffect(() => {
+    if (urlSettingsApplied.current) return;
+    urlSettingsApplied.current = true;
+    const urlState = decodeURLState(window.location.search);
+    if (urlState.settings && Object.keys(urlState.settings).length > 0) {
+      setSettings((prev) => ({ ...prev, ...urlState.settings }));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync schedule to localStorage when persistSchedule is on
   useEffect(() => {
     if (settings.persistSchedule) {
       try {
         window.localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(schedule));
-      } catch (err) {
-        console.warn('Error saving schedule to localStorage:', err);
+      } catch {
+        // ignore
       }
     } else {
       window.localStorage.removeItem(SCHEDULE_STORAGE_KEY);
     }
   }, [schedule, settings.persistSchedule]);
+
+  // Sync state → URL (debounced, replaceState so no history spam)
+  const urlSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (urlSyncTimer.current) clearTimeout(urlSyncTimer.current);
+    urlSyncTimer.current = setTimeout(() => {
+      pushStateToURL(schedule, settings);
+    }, 300);
+    return () => {
+      if (urlSyncTimer.current) clearTimeout(urlSyncTimer.current);
+    };
+  }, [schedule, settings]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -70,15 +105,7 @@ export const App: React.FC = () => {
   };
 
   const handleClearAllSchedule = () => {
-    setSchedule({
-      thursday: [],
-      friday: [],
-      saturday: [],
-      sunday: [],
-      monday: [],
-      tuesday: [],
-      wednesday: [],
-    });
+    setSchedule({ ...EMPTY_SCHEDULE });
   };
 
   return (
