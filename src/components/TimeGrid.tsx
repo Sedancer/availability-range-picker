@@ -207,7 +207,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                       className={`group relative w-full h-8 sm:h-9 rounded-lg font-mono text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30'
-                          : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
+                          : 'bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-800/60 backdrop-blur-xs'
                       }`}
                     >
                       <span className="pointer-events-none">{hour}</span>

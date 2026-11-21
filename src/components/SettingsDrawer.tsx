@@ -99,21 +99,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     ))}
                   </select>
                 </div>
-
-                <label className="flex items-center gap-2 pt-0.5 text-[11px] text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settings.showBothTimezonesInOutput}
-                    onChange={(e) =>
-                      onUpdateSettings({
-                        ...settings,
-                        showBothTimezonesInOutput: e.target.checked,
-                      })
-                    }
-                    className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0 cursor-pointer"
-                  />
-                  <span>Show both in output (me / client)</span>
-                </label>
               </div>
             </div>
 
@@ -136,7 +121,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-8 h-4.5 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  <div className="w-8 h-[18px] bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
 
@@ -246,7 +231,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-8 h-4.5 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-rose-500"></div>
+                  <div className="w-8 h-[18px] bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-rose-500"></div>
                 </label>
               </div>
 
@@ -268,7 +253,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-8 h-4.5 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  <div className="w-8 h-[18px] bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
 
