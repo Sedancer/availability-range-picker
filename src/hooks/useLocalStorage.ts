@@ -1,19 +1,29 @@
 import { useState, useEffect } from 'react';
 
-export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+  override?: (val: T) => T
+): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
+    let result: T;
     try {
       const item = window.localStorage.getItem(key);
-      if (!item) return initialValue;
-      const parsed = JSON.parse(item);
-      if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
-        return { ...initialValue, ...parsed };
+      if (!item) {
+        result = initialValue;
+      } else {
+        const parsed = JSON.parse(item);
+        if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
+          result = { ...initialValue, ...parsed };
+        } else {
+          result = parsed;
+        }
       }
-      return parsed;
     } catch (error) {
       console.warn(`Error reading localStorage key "${key}":`, error);
-      return initialValue;
+      result = initialValue;
     }
+    return override ? override(result) : result;
   });
 
   useEffect(() => {

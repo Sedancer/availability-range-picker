@@ -40,6 +40,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* The single valuable input */}
         <input
           type="text"
+          id="availability-output"
+          name="availability-output"
+          aria-label="Availability string output"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Availability string..."

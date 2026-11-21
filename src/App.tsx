@@ -41,7 +41,13 @@ const SCHEDULE_STORAGE_KEY = 'timeslotter_schedule_v1';
 export const App: React.FC = () => {
   const [settings, setSettings] = useLocalStorage<AppSettings>(
     'timeslotter_settings_v1',
-    DEFAULT_SETTINGS
+    DEFAULT_SETTINGS,
+    (stored) => {
+      const urlState = decodeURLState(window.location.search);
+      return urlState.settings && Object.keys(urlState.settings).length > 0
+        ? { ...stored, ...urlState.settings }
+        : stored;
+    }
   );
 
   const [schedule, setSchedule] = useState<WeekSchedule>(() => {
@@ -61,17 +67,6 @@ export const App: React.FC = () => {
     }
     return PREFILLED_SCHEDULE;
   });
-
-  // Apply URL settings on mount (tz, startDay, sleep) — once only
-  const urlSettingsApplied = useRef(false);
-  useEffect(() => {
-    if (urlSettingsApplied.current) return;
-    urlSettingsApplied.current = true;
-    const urlState = decodeURLState(window.location.search);
-    if (urlState.settings && Object.keys(urlState.settings).length > 0) {
-      setSettings((prev) => ({ ...prev, ...urlState.settings }));
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync schedule to localStorage when persistSchedule is on
   useEffect(() => {
