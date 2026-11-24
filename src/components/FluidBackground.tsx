@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * WebGL Fluid Simulation – High-Speed Neon Laser Beam Solver.
@@ -9,8 +9,30 @@ import React, { useEffect, useRef } from 'react';
  *   - Vibrant laser colors: electric cyan, emerald, cyber violet, and neon amber.
  *   - High-speed ambient laser pulses cutting across the dark grid.
  */
-export const FluidBackground: React.FC = () => {
+interface FluidBackgroundProps {
+  paused?: boolean;
+}
+
+export const FluidBackground: React.FC<FluidBackgroundProps> = ({ paused = false }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pauseAnimationRef = useRef<(shouldPause: boolean) => void>(() => {});
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  );
+  const shouldPause = paused || prefersReducedMotion;
+  const pausedRef = useRef(shouldPause);
+
+  useEffect(() => {
+    pausedRef.current = shouldPause;
+    pauseAnimationRef.current(shouldPause);
+  }, [shouldPause]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    mediaQuery.addEventListener('change', updatePreference);
+    return () => mediaQuery.removeEventListener('change', updatePreference);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -39,18 +61,19 @@ export const FluidBackground: React.FC = () => {
     const filterType = linearExt ? gl.LINEAR : gl.NEAREST;
 
     gl.clearColor(0, 0, 0, 0);
+    let isPaused = pausedRef.current;
 
     const isMobile = window.innerWidth < 768;
     const CFG = {
-      SIM: isMobile ? 64 : 128,
-      DYE: isMobile ? 256 : 512,
-      PRESSURE_ITERS: isMobile ? 12 : 20,
-      DENSITY_DISS: 2.8,   // Fast dissipation: laser trail fades swiftly, no lingering fog
-      VEL_DISS: 0.05,      // Very low friction: laser shoots through with high speed
+      SIM: isMobile ? 48 : 96,
+      DYE: isMobile ? 192 : 384,
+      PRESSURE_ITERS: isMobile ? 9 : 14,
+      DENSITY_DISS: 6,
+      VEL_DISS: 0.18,
       PRESSURE: 0.8,
-      CURL: 42,            // Snappy micro-vortices
-      SPLAT_R: 0.00075,    // Razor-thin laser beam radius (5x narrower than smoke)
-      SPLAT_F: 15000,      // High-speed energetic impulse
+      CURL: 28,
+      SPLAT_R: 0.0011,
+      SPLAT_F: 9000,
     };
 
     // ── Shader helpers ───────────────────────────────────────────────────────
@@ -66,9 +89,15 @@ export const FluidBackground: React.FC = () => {
 
     function makeProgram(vsrc: string, fsrc: string) {
       const p = gl!.createProgram()!;
-      gl!.attachShader(p, compileShader(gl!.VERTEX_SHADER, vsrc));
-      gl!.attachShader(p, compileShader(gl!.FRAGMENT_SHADER, fsrc));
+      const vertexShader = compileShader(gl!.VERTEX_SHADER, vsrc);
+      const fragmentShader = compileShader(gl!.FRAGMENT_SHADER, fsrc);
+      gl!.attachShader(p, vertexShader);
+      gl!.attachShader(p, fragmentShader);
       gl!.linkProgram(p);
+      gl!.detachShader(p, vertexShader);
+      gl!.detachShader(p, fragmentShader);
+      gl!.deleteShader(vertexShader);
+      gl!.deleteShader(fragmentShader);
       if (!gl!.getProgramParameter(p, gl!.LINK_STATUS)) {
         console.warn('[Fluid] program link error:', gl!.getProgramInfoLog(p));
       }
@@ -114,12 +143,13 @@ export const FluidBackground: React.FC = () => {
       precision highp float;
       varying vec2 vUv;
       uniform sampler2D uTex;
+      uniform float uAlpha, uIntensity;
       void main(){
         vec3 c = texture2D(uTex, vUv).rgb;
         float maxC = max(c.r, max(c.g, c.b));
         // Razor-sharp threshold with neon laser core
-        float alpha = smoothstep(0.03, 0.45, maxC);
-        gl_FragColor = vec4(c * 1.5, alpha);
+        float alpha = smoothstep(0.03, 0.45, maxC) * uAlpha;
+        gl_FragColor = vec4(c * uIntensity, alpha);
       }`;
 
     // Sharp laser splat: power curve gives a hot focused center line with minimal diffuse blur
@@ -237,6 +267,7 @@ export const FluidBackground: React.FC = () => {
     const pPressure = makeProgram(BASE_VS, PRESSURE_FS);
     const pGrad     = makeProgram(BASE_VS, GRAD_FS);
     const pDisplay  = makeProgram(DISPLAY_VS, DISPLAY_FS);
+    const programs = [pClear, pSplat, pAdvect, pDiv, pCurl, pVort, pPressure, pGrad, pDisplay];
 
     // ── Quad Buffer ──────────────────────────────────────────────────────────
     const quadBuf = gl.createBuffer()!;
@@ -261,6 +292,8 @@ export const FluidBackground: React.FC = () => {
       bind(id: number): number;
     };
 
+    let allocatedFBOs: FBO[] = [];
+
     function makeFBO(w: number, h: number, filter: number): FBO {
       const texture = gl!.createTexture()!;
       gl!.bindTexture(gl!.TEXTURE_2D, texture);
@@ -274,7 +307,7 @@ export const FluidBackground: React.FC = () => {
       gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbo);
       gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, texture, 0);
 
-      return {
+      const target = {
         texture,
         fbo,
         width: w,
@@ -287,6 +320,8 @@ export const FluidBackground: React.FC = () => {
           return id;
         },
       };
+      allocatedFBOs.push(target);
+      return target;
     }
 
     type DoubleFBO = {
@@ -320,13 +355,31 @@ export const FluidBackground: React.FC = () => {
     }
 
     // ── FBO Allocation ───────────────────────────────────────────────────────
-    let vel: DoubleFBO, dye: DoubleFBO, div: FBO, curl: FBO, pres: DoubleFBO;
+    let vel: DoubleFBO;
+    let dye: DoubleFBO;
+    let div: FBO;
+    let curl: FBO;
+    let pres: DoubleFBO;
     let fboReady = false;
+
+    function deleteFBO(target: FBO) {
+      gl!.deleteFramebuffer(target.fbo);
+      gl!.deleteTexture(target.texture);
+    }
+
+    function deleteFBOs() {
+      allocatedFBOs.forEach(deleteFBO);
+      allocatedFBOs = [];
+      fboReady = false;
+    }
 
     function initFBOs() {
       const cw = canvas!.width;
       const ch = canvas!.height;
-      if (!cw || !ch) { fboReady = false; return; }
+      if (!cw || !ch) {
+        deleteFBOs();
+        return;
+      }
 
       const simW = CFG.SIM;
       const simH = Math.max(1, Math.round(CFG.SIM * ch / cw));
@@ -334,6 +387,7 @@ export const FluidBackground: React.FC = () => {
       const dyeH = Math.max(1, Math.round(CFG.DYE * ch / cw));
 
       try {
+        deleteFBOs();
         dye  = makeDoubleFBO(dyeW, dyeH, filterType);
         vel  = makeDoubleFBO(simW, simH, filterType);
         div  = makeFBO(simW, simH, gl!.NEAREST);
@@ -341,8 +395,8 @@ export const FluidBackground: React.FC = () => {
         pres = makeDoubleFBO(simW, simH, gl!.NEAREST);
         fboReady = true;
       } catch (e) {
+        deleteFBOs();
         console.warn('[Fluid] FBO init error:', e);
-        fboReady = false;
       }
     }
 
@@ -363,11 +417,11 @@ export const FluidBackground: React.FC = () => {
 
     // ── Vivid Laser Color Palette ────────────────────────────────────────────
     const LASER_PALETTE: [number, number, number][] = [
-      [0.0, 0.95, 1.0],   // Electric Laser Cyan
-      [0.0, 1.0, 0.55],   // Vivid Laser Emerald
-      [0.85, 0.20, 1.0],  // Cyber Laser Violet
-      [0.20, 0.65, 1.0],  // Deep Sky Laser
-      [1.0, 0.60, 0.05],  // Neon Amber
+      [0.0, 0.42, 0.48],
+      [0.0, 0.42, 0.24],
+      [0.38, 0.12, 0.48],
+      [0.1, 0.28, 0.45],
+      [0.48, 0.27, 0.05],
     ];
     let colorIdx = 0;
     function nextLaserColor(): [number, number, number] {
@@ -405,36 +459,37 @@ export const FluidBackground: React.FC = () => {
     let ambientTimer = 0;
     function tickAmbient() {
       ambientTimer++;
-      // Every ~75 frames (~1.2s), shoot a fast razor-thin laser streak
-      if (ambientTimer % 75 === 0 && fboReady) {
-        const x = 0.15 + Math.random() * 0.7;
-        const y = 0.15 + Math.random() * 0.7;
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 4000 + Math.random() * 3000;
-        const dx = Math.cos(angle) * speed;
-        const dy = Math.sin(angle) * speed;
-        splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R * 1.3);
+      // A few low horizontal laser streaks, with the beam staying near the footer.
+      if (ambientTimer % 105 === 0 && fboReady) {
+        const x = Math.random() > 0.5 ? -0.04 : 1.04;
+        const y = 0.08 + Math.random() * 0.16;
+        const direction = x < 0 ? 1 : -1;
+        const dx = direction * (2200 + Math.random() * 1800);
+        const dy = (Math.random() - 0.5) * 180;
+        splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R * 1.8);
       }
     }
 
     // Initial swift laser flashes on mount
-    setTimeout(() => {
-      if (!fboReady) return;
+    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
+    timeoutIds.push(setTimeout(() => {
+      if (!fboReady || isPaused) return;
       for (let i = 0; i < 4; i++) {
-        setTimeout(() => {
-          const x = 0.2 + Math.random() * 0.6;
-          const y = 0.2 + Math.random() * 0.6;
-          const angle = Math.random() * Math.PI * 2;
-          splat(x, y, Math.cos(angle) * 5000, Math.sin(angle) * 5000, nextLaserColor());
-        }, i * 90);
+        timeoutIds.push(setTimeout(() => {
+          if (isPaused) return;
+          const x = 0.05 + Math.random() * 0.9;
+          const y = 0.08 + Math.random() * 0.14;
+          const direction = Math.random() > 0.5 ? 1 : -1;
+          splat(x, y, direction * 4200, (Math.random() - 0.5) * 180, nextLaserColor());
+        }, i * 90));
       }
-    }, 80);
+    }, 80));
 
     // ── Pointer Interaction ──────────────────────────────────────────────────
     let lastX = 0, lastY = 0, hasMoved = false;
 
     function handlePointerMove(cx: number, cy: number) {
-      if (!fboReady) return;
+      if (!fboReady || isPaused) return;
       const x = cx / window.innerWidth;
       const y = 1.0 - cy / window.innerHeight;
 
@@ -456,7 +511,7 @@ export const FluidBackground: React.FC = () => {
     }
 
     function handlePointerDown(cx: number, cy: number) {
-      if (!fboReady) return;
+      if (!fboReady || isPaused) return;
       const x = cx / window.innerWidth;
       const y = 1.0 - cy / window.innerHeight;
       lastX = x;
@@ -489,6 +544,7 @@ export const FluidBackground: React.FC = () => {
     let animId: number;
 
     function step(now: number) {
+      if (isPaused) return;
       animId = requestAnimationFrame(step);
 
       if (!fboReady) return;
@@ -581,24 +637,46 @@ export const FluidBackground: React.FC = () => {
       gl!.useProgram(pDisplay.p);
       setupAttrib(pDisplay.p);
       gl!.uniform1i(pDisplay.u.uTex, dye.read.bind(0));
+      const isLightMode = document.documentElement.dataset.colorMode === 'light';
+      gl!.uniform1f(pDisplay.u.uAlpha, isLightMode ? 0.48 : 0.28);
+      gl!.uniform1f(pDisplay.u.uIntensity, isLightMode ? 0.82 : 0.55);
       gl!.drawArrays(gl!.TRIANGLE_FAN, 0, 4);
     }
 
-    animId = requestAnimationFrame(step);
+    pauseAnimationRef.current = (shouldPause) => {
+      if (isPaused === shouldPause) return;
+      isPaused = shouldPause;
+      if (isPaused) {
+        hasMoved = false;
+        cancelAnimationFrame(animId);
+      } else {
+        hasMoved = false;
+        lastTime = performance.now();
+        animId = requestAnimationFrame(step);
+      }
+    };
+
+    if (!isPaused) animId = requestAnimationFrame(step);
 
     return () => {
+      pauseAnimationRef.current = () => {};
       cancelAnimationFrame(animId);
+      timeoutIds.forEach(clearTimeout);
       window.removeEventListener('resize', resizeCanvas);
       window.removeEventListener('mousemove', onMouse);
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('touchmove', onTouch);
       window.removeEventListener('touchstart', onTouchStart);
+      deleteFBOs();
+      programs.forEach(({ p }) => gl!.deleteProgram(p));
+      gl!.deleteBuffer(quadBuf);
     };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
+      aria-hidden="true"
       className="fixed inset-0 w-full h-full pointer-events-none z-0"
       style={{ display: 'block' }}
     />

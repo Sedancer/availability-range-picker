@@ -13,6 +13,7 @@
  */
 
 import type { AppSettings, DayOfWeek, WeekSchedule } from '../types';
+import { TIMEZONE_OPTIONS } from './timezones';
 
 export const DAY_3LETTER_MAP: Record<string, DayOfWeek> = {
   mon: 'monday',
@@ -54,6 +55,7 @@ const ALL_DAYS: DayOfWeek[] = [
   'saturday',
   'sunday',
 ];
+const VALID_TIMEZONE_OFFSETS = new Set(TIMEZONE_OPTIONS.map(({ offset }) => offset));
 
 // ─── Encode Helpers ──────────────────────────────────────────────────────────
 
@@ -91,16 +93,16 @@ export function decodeHours(str: string): number[] {
   const parts = str.split(/[_,]/);
 
   for (const part of parts) {
-    const dash = part.indexOf('-');
-    if (dash > 0) {
-      const a = parseInt(part.slice(0, dash), 10);
-      const b = parseInt(part.slice(dash + 1), 10);
-      if (!isNaN(a) && !isNaN(b)) {
-        for (let h = a; h <= b; h++) hours.push(h);
+    const range = /^(\d+)-(\d+)$/.exec(part);
+    if (range) {
+      const a = Number(range[1]);
+      const b = Number(range[2]);
+      if (a >= 0 && b >= a) {
+        for (let h = a; h <= Math.min(b, 23); h++) hours.push(h);
       }
-    } else {
-      const h = parseInt(part, 10);
-      if (!isNaN(h)) hours.push(h);
+    } else if (/^\d+$/.test(part)) {
+      const h = Number(part);
+      if (h >= 0 && h < 24) hours.push(h);
     }
   }
   return Array.from(new Set(hours)).sort((a, b) => a - b);
@@ -195,7 +197,8 @@ export function decodeURLState(search: string): ParsedURLState {
   // 3. Start day: modern ?start=thu or legacy ?d=thu / ?d=th
   const startParam = params.get('start') || params.get('d');
   if (startParam) {
-    const mapped = DAY_3LETTER_MAP[startParam] || LEGACY_DAY_CODES[startParam];
+    const normalizedStart = startParam.toLowerCase();
+    const mapped = DAY_3LETTER_MAP[normalizedStart] || LEGACY_DAY_CODES[normalizedStart];
     if (mapped) {
       result.settings = { ...result.settings, startDay: mapped };
     }
@@ -206,9 +209,17 @@ export function decodeURLState(search: string): ParsedURLState {
   if (tzParam) {
     const separatorIdx = tzParam.includes('_') ? tzParam.lastIndexOf('_') : tzParam.lastIndexOf(':');
     if (separatorIdx > 0) {
-      const my = parseFloat(tzParam.slice(0, separatorIdx));
-      const cl = parseFloat(tzParam.slice(separatorIdx + 1));
-      if (!isNaN(my) && !isNaN(cl)) {
+      const valuePattern = /^-?\d+(?:\.\d+)?$/;
+      const myValue = tzParam.slice(0, separatorIdx);
+      const clientValue = tzParam.slice(separatorIdx + 1);
+      const my = Number(myValue);
+      const cl = Number(clientValue);
+      if (
+        valuePattern.test(myValue)
+        && valuePattern.test(clientValue)
+        && VALID_TIMEZONE_OFFSETS.has(my)
+        && VALID_TIMEZONE_OFFSETS.has(cl)
+      ) {
         result.settings = {
           ...result.settings,
           myTimezoneOffset: my,
@@ -223,11 +234,11 @@ export function decodeURLState(search: string): ParsedURLState {
   if (sleepParam === 'off') {
     result.settings = { ...result.settings, sleepEnabled: false };
   } else if (sleepParam) {
-    const dash = sleepParam.indexOf('-');
-    if (dash > 0) {
-      const start = parseInt(sleepParam.slice(0, dash), 10);
-      const end = parseInt(sleepParam.slice(dash + 1), 10);
-      if (!isNaN(start) && !isNaN(end)) {
+    const sleepHours = /^(\d{1,2})-(\d{1,2})$/.exec(sleepParam);
+    if (sleepHours) {
+      const start = Number(sleepHours[1]);
+      const end = Number(sleepHours[2]);
+      if (start < 24 && end < 24) {
         result.settings = {
           ...result.settings,
           sleepEnabled: true,

@@ -111,4 +111,17 @@ describe('urlState clean human-readable format', () => {
     expect(decodeURLState('?')).toEqual({});
     expect(decodeURLState('?unknown=123')).toEqual({});
   });
+
+  it('rejects out-of-range and reversed hour ranges', () => {
+    const decoded = decodeURLState('?mon=-5&mon=30-40&tue=25&wed=20-10');
+    expect(decoded.schedule?.monday).toEqual([]);
+    expect(decoded.schedule?.tuesday).toEqual([]);
+    expect(decoded.schedule?.wednesday).toEqual([]);
+  });
+
+  it('ignores malformed hours, unsupported timezones, and invalid sleep hours', () => {
+    const decoded = decodeURLState('?mon=8x_10-12x&tz=100_0&sleep=24-8');
+    expect(decoded.schedule?.monday).toEqual([]);
+    expect(decoded.settings).toBeUndefined();
+  });
 });

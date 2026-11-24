@@ -82,28 +82,28 @@ export function parseAvailabilityString(
     }
 
     const dayHours: number[] = [];
-    // Split slots by comma or space
     const slots = rawHours
-      .split(/[,]/)
+      .replace(/\s*-\s*/g, '-')
+      .split(/[,\s]+/)
       .map((s) => s.trim())
       .filter(Boolean);
 
     for (const slot of slots) {
-      const dashIdx = slot.indexOf('-');
-      if (dashIdx > 0) {
-        const start = parseInt(slot.slice(0, dashIdx).trim(), 10);
-        const end = parseInt(slot.slice(dashIdx + 1).trim(), 10);
+      const range = /^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/.exec(slot);
+      if (range) {
+        const start = Number(range[1]);
+        const end = Number(range[2]);
 
-        if (!isNaN(start) && !isNaN(end) && start < end) {
+        if (Number.isFinite(start) && Number.isFinite(end) && start < end) {
           // Half-open interval [start, end) e.g. 10-13 means hours 10, 11, 12
           const maxEnd = Math.min(end, 24);
           for (let h = Math.max(0, start); h < maxEnd; h++) {
             dayHours.push(h);
           }
         }
-      } else {
-        const single = parseInt(slot, 10);
-        if (!isNaN(single) && single >= 0 && single < 24) {
+      } else if (/^\d+(?:\.\d+)?$/.test(slot)) {
+        const single = Number(slot);
+        if (Number.isFinite(single) && single >= 0 && single < 24) {
           dayHours.push(single);
         }
       }

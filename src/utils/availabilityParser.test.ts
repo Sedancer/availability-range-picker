@@ -54,4 +54,14 @@ describe('parseAvailabilityString', () => {
     expect(schedule.wednesday).toEqual([]);
     expect(schedule.thursday).toEqual([12, 13]);
   });
+
+  it('ignores partially typed numeric values instead of parsing their numeric prefix', () => {
+    const schedule = parseAvailabilityString('Mon: 8x, 10-12x, 14 - 16');
+    expect(schedule.monday).toEqual([14, 15]);
+  });
+
+  it('accepts whitespace-separated hours and ranges', () => {
+    const schedule = parseAvailabilityString('Tue: 8 10 - 12, 14');
+    expect(schedule.tuesday).toEqual([8, 10, 11, 14]);
+  });
 });

@@ -179,4 +179,31 @@ describe('Availability Logic & Timezones', () => {
     expect(result).toContain('Sun: -;');
     expect(result).toContain('Mon: 14-17;');
   });
+
+  it('formats fractional timezone shifts without invalid backward ranges', () => {
+    const settings: AppSettings = {
+      startDay: 'monday',
+      myTimezoneOffset: 0,
+      clientTimezoneOffset: 5.5,
+      sleepEnabled: false,
+      sleepStartHour: 22,
+      sleepEndHour: 8,
+      showBothTimezonesInOutput: false,
+      persistSchedule: false,
+      disableWeekends: false,
+    };
+
+    const schedule: WeekSchedule = {
+      monday: [9],
+      tuesday: [],
+      wednesday: [],
+      thursday: [],
+      friday: [],
+      saturday: [],
+      sunday: [],
+    };
+
+    const result = generateAvailabilityString(schedule, settings);
+    expect(result).toContain('Mon: 14.5-15.5;');
+  });
 });

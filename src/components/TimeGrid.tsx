@@ -151,7 +151,7 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* 7 Columns */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
+      <div role="group" aria-label="Weekly availability" className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {
           const isWeekendDisabled = settings.disableWeekends && day.isWeekend;
           const selectedHours = isWeekendDisabled ? [] : (schedule[day.id] || []);
@@ -159,9 +159,10 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
           return (
             <div
               key={day.id}
-              className={`flex flex-col items-center min-w-0 transition-opacity ${
-                isWeekendDisabled ? 'opacity-25 pointer-events-none' : ''
-              }`}
+              role="group"
+              aria-label={`${day.name}${isWeekendDisabled ? ', disabled' : ''}`}
+              aria-disabled={isWeekendDisabled}
+              className="flex flex-col items-center min-w-0"
             >
               {/* Day Header */}
               <div className="flex items-center justify-between w-full pb-1.5 mb-1.5 border-b border-slate-800">
@@ -177,13 +178,13 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                   <button
                     type="button"
                     onClick={() => handleClearDay(day.id)}
-                    title={`Clear ${day.shortName}`}
-                    className="p-1 text-slate-500 hover:text-rose-400 rounded-md transition-colors cursor-pointer"
+                    aria-label={`Clear ${day.name} selection`}
+                    className="p-1 text-slate-400 hover:text-rose-400 rounded-md transition-colors cursor-pointer"
                   >
                     <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </button>
                 ) : (
-                  <Ban className="w-3 h-3 text-slate-600" />
+                  <Ban className="w-3 h-3 text-slate-400" />
                 )}
               </div>
 
@@ -198,16 +199,26 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
                       data-hour={hour}
                       data-day={day.id}
                       type="button"
+                      disabled={isWeekendDisabled}
+                      aria-pressed={isSelected}
+                      aria-label={`${day.name} ${String(hour).padStart(2, '0')}:00, ${isSelected ? 'available' : 'unavailable'}`}
                       onPointerDown={(e) => {
                         if (e.button === 0) {
                           handlePointerStart(day.id, hour, isWeekendDisabled);
                         }
                       }}
+                      onClick={(event) => {
+                        if (event.detail === 0) {
+                          handlePointerStart(day.id, hour, isWeekendDisabled);
+                        }
+                      }}
                       onMouseEnter={() => handleMouseEnter(day.id, hour, isWeekendDisabled)}
-                      className={`group relative w-full h-8 sm:h-9 rounded-lg font-mono text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30'
-                          : 'bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-800/60 backdrop-blur-xs'
+                      className={`group relative w-full h-8 sm:h-9 rounded-lg font-mono text-xs sm:text-sm flex items-center justify-center transition-all ${
+                        isWeekendDisabled
+                          ? 'bg-slate-900/40 text-slate-400 border border-slate-800/60 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-xs shadow-emerald-500/30 cursor-pointer'
+                          : 'bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-800/60 backdrop-blur-xs cursor-pointer'
                       }`}
                     >
                       <span className="pointer-events-none">{hour}</span>

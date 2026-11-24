@@ -63,8 +63,13 @@ export function groupConsecutiveHours(hours: number[]): TimeSlot[] {
  * Format: 8-9, 14-17, 22-24 (start is always strictly less than end)
  */
 export function formatSlot(slot: TimeSlot, offsetDiff: number = 0): string {
+  const formatHour = (hour: number): string => {
+    const rounded = Math.round(hour * 100) / 100;
+    return String(rounded);
+  };
+
   if (offsetDiff === 0) {
-    return `${slot.startHour}-${slot.endHour}`;
+    return `${formatHour(slot.startHour)}-${formatHour(slot.endHour)}`;
   }
   // Safe fallback if called directly with offset
   let start = (slot.startHour + offsetDiff) % 24;

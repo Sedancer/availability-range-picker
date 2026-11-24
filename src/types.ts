@@ -8,6 +8,7 @@ export interface DayConfig {
 }
 
 export interface AppSettings {
+  colorMode?: 'dark' | 'light';
   startDay: DayOfWeek;
   myTimezoneOffset: number; // e.g., 0 for UTC+0, 2 for UTC+2, -5 for UTC-5
   clientTimezoneOffset: number;
