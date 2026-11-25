@@ -1,7 +1,8 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React from 'react';
 import { X, Ban } from 'lucide-react';
 import type { AppSettings, DayOfWeek, WeekSchedule } from '../types';
 import { getOrderedDays, isSleepHour } from '../utils/availability';
+import { useTimeGridSelection } from '../hooks/useTimeGridSelection';
 
 interface TimeGridProps {
   schedule: WeekSchedule;
@@ -14,13 +15,6 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
   settings,
   onChangeSchedule,
 }) => {
-  // Dragging state for single-click & continuous range drag
-  const isDraggingRef = useRef(false);
-  const dragModeRef = useRef<'add' | 'remove'>('add');
-  const dragDayIdRef = useRef<DayOfWeek | null>(null);
-  const dragStartHourRef = useRef<number | null>(null);
-  const initialSelectionRef = useRef<number[]>([]);
-
   // Compute displayed hours
   const allHours = Array.from({ length: 24 }, (_, i) => i);
   const visibleHours = settings.sleepEnabled
@@ -28,113 +22,12 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
     : allHours;
 
   const orderedDays = getOrderedDays(settings.startDay);
-
-  // Apply continuous range between startHour and currentHour
-  const applyRangeState = useCallback(
-    (dayId: DayOfWeek, currentHour: number) => {
-      if (dragStartHourRef.current === null) return;
-
-      const start = Math.min(dragStartHourRef.current, currentHour);
-      const end = Math.max(dragStartHourRef.current, currentHour);
-      const rangeHours = visibleHours.filter((h) => h >= start && h <= end);
-      const shouldAdd = dragModeRef.current === 'add';
-
-      onChangeSchedule((prev: WeekSchedule) => {
-        const base = initialSelectionRef.current;
-        let updated: number[];
-
-        if (shouldAdd) {
-          updated = Array.from(new Set([...base, ...rangeHours])).sort((a, b) => a - b);
-        } else {
-          updated = base.filter((h) => !rangeHours.includes(h));
-        }
-
-        return {
-          ...prev,
-          [dayId]: updated,
-        };
-      });
-    },
-    [onChangeSchedule, visibleHours]
-  );
-
-  // Unified global end listener
-  useEffect(() => {
-    const handleEnd = () => {
-      isDraggingRef.current = false;
-      dragDayIdRef.current = null;
-      dragStartHourRef.current = null;
-    };
-    window.addEventListener('pointerup', handleEnd);
-    window.addEventListener('pointercancel', handleEnd);
-    window.addEventListener('mouseup', handleEnd);
-    window.addEventListener('touchend', handleEnd);
-    return () => {
-      window.removeEventListener('pointerup', handleEnd);
-      window.removeEventListener('pointercancel', handleEnd);
-      window.removeEventListener('mouseup', handleEnd);
-      window.removeEventListener('touchend', handleEnd);
-    };
-  }, []);
-
-  // Pointer Down (Mouse LMB, Touch or Pen):
-  // Smart Toggle start
-  const handlePointerStart = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
-    if (isDisabled) return;
-
-    const currentHours = schedule[dayId] || [];
-    const isCurrentlySelected = currentHours.includes(hour);
-    const targetMode = isCurrentlySelected ? 'remove' : 'add';
-
-    isDraggingRef.current = true;
-    dragModeRef.current = targetMode;
-    dragDayIdRef.current = dayId;
-    dragStartHourRef.current = hour;
-    initialSelectionRef.current = currentHours;
-
-    // Apply start hour immediately
-    applyRangeState(dayId, hour);
-  };
-
-  // Mouse Enter while dragging (desktop continuous range)
-  const handleMouseEnter = (dayId: DayOfWeek, hour: number, isDisabled: boolean) => {
-    if (isDisabled || !isDraggingRef.current) return;
-    if (dragDayIdRef.current !== dayId) return; // Locked strictly to starting day
-    applyRangeState(dayId, hour);
-  };
-
-  // Touch Move / Touch End range updates using elementFromPoint with closest button support
-  const handleTouchRangeAtPoint = (clientX: number, clientY: number) => {
-    if (!isDraggingRef.current || !dragDayIdRef.current) return;
-
-    const target = document.elementFromPoint(clientX, clientY);
-    if (!target) return;
-
-    const button = target.closest('[data-hour]');
-    if (!button) return;
-
-    const hourAttr = button.getAttribute('data-hour');
-    const dayAttr = button.getAttribute('data-day') as DayOfWeek | null;
-
-    if (hourAttr && dayAttr === dragDayIdRef.current) {
-      const currentHour = parseInt(hourAttr, 10);
-      applyRangeState(dayAttr, currentHour);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (touch) {
-      handleTouchRangeAtPoint(touch.clientX, touch.clientY);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const touch = e.changedTouches[0];
-    if (touch) {
-      handleTouchRangeAtPoint(touch.clientX, touch.clientY);
-    }
-  };
+  const {
+    handlePointerStart,
+    handleMouseEnter,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useTimeGridSelection({ schedule, visibleHours, onChangeSchedule });
 
   const handleClearDay = (dayId: DayOfWeek) => {
     onChangeSchedule((prev: WeekSchedule) => ({
@@ -150,6 +43,11 @@ export const TimeGrid: React.FC<TimeGridProps> = ({
       className="w-full select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
+      {!settings.sleepEnabled && (
+        <p role="note" className="mb-2 rounded-md border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
+          Full-day view may extend below the screen. Scroll the page before or after selecting; a vertical page scroll can cancel a touch drag.
+        </p>
+      )}
       {/* 7 Columns */}
       <div role="group" aria-label="Weekly availability" className="grid grid-cols-7 gap-1 sm:gap-2 w-full">
         {orderedDays.map((day) => {

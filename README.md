@@ -17,7 +17,8 @@ TimeSlotter is a browser-based availability planner. Select weekly hours, option
 - **Readable output:** Copy a single-line, 24-hour schedule with consecutive hours grouped into ranges. Empty days are shown as `-`.
 - **Theme options:** Choose light or dark mode in Settings, or use the pull-chain lamp below the schedule. Dark mode is the default.
 - **Optional persistence:** Settings are saved in the browser. Weekly selections reset on reload unless schedule persistence is enabled.
-- **Manual editing:** Edit the generated schedule as text and have valid changes reflected in the weekly grid.
+- **Manual editing:** Open a non-shifting schedule editor over the grid. The copyable client-timezone result stays visible while text and grid changes stay synchronized.
+- **Touch selection:** Drag across a day's slots to select a range. With all 24 hours visible, the grid stays in normal page flow and may extend below the screen; scroll the page before or after selecting. A vertical page scroll can cancel an in-progress touch drag.
 
 ## Local development
 

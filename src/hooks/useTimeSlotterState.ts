@@ -8,29 +8,7 @@ import {
 } from '../constants';
 import type { AppSettings, WeekSchedule } from '../types';
 import { decodeURLState, pushStateToURL } from '../utils/urlState';
-
-function normalizeSchedule(value: unknown): WeekSchedule | null {
-  if (!value || typeof value !== 'object') return null;
-
-  const source = value as Partial<Record<keyof WeekSchedule, unknown>>;
-  const normalized = { ...EMPTY_SCHEDULE };
-
-  for (const day of Object.keys(normalized) as (keyof WeekSchedule)[]) {
-    const hours = source[day];
-    if (!Array.isArray(hours)) continue;
-
-    normalized[day] = Array.from(new Set(
-      hours.filter((hour): hour is number =>
-        typeof hour === 'number'
-        && Number.isFinite(hour)
-        && hour >= 0
-        && hour < 24
-      )
-    )).sort((a, b) => a - b);
-  }
-
-  return normalized;
-}
+import { hasScheduleData, sanitizeSchedule, sanitizeSettings } from '../utils/stateValidation';
 
 export function useTimeSlotterState() {
   const [settings, setSettings] = useLocalStorage<AppSettings>(
@@ -41,24 +19,25 @@ export function useTimeSlotterState() {
       return urlState.settings && Object.keys(urlState.settings).length > 0
         ? { ...stored, ...urlState.settings }
         : stored;
-    }
+    },
+    sanitizeSettings
   );
 
   const [schedule, setSchedule] = useState<WeekSchedule>(() => {
     const urlState = decodeURLState(window.location.search);
     if (urlState.schedule && Object.keys(urlState.schedule).length > 0) {
-      return normalizeSchedule({ ...EMPTY_SCHEDULE, ...urlState.schedule }) ?? EMPTY_SCHEDULE;
+      return sanitizeSchedule({ ...EMPTY_SCHEDULE, ...urlState.schedule });
     }
 
     if (settings.persistSchedule) {
       try {
         const item = window.localStorage.getItem(SCHEDULE_STORAGE_KEY);
         if (item) {
-          const restored = normalizeSchedule(JSON.parse(item));
-          if (restored) return restored;
+          const parsed = JSON.parse(item) as unknown;
+          if (hasScheduleData(parsed)) return sanitizeSchedule(parsed);
         }
       } catch {
-        // Ignore invalid saved state.
+        // Invalid saved schedules are discarded.
       }
     }
 
@@ -68,7 +47,7 @@ export function useTimeSlotterState() {
   useEffect(() => {
     if (settings.persistSchedule) {
       try {
-        window.localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(schedule));
+        window.localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(sanitizeSchedule(schedule)));
       } catch {
         // Ignore storage restrictions.
       }

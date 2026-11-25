@@ -92,18 +92,9 @@ describe('urlState clean human-readable format', () => {
     expect(decoded2.settings?.sleepEnabled).toBe(false);
   });
 
-  it('backward compatibility: decodes legacy URL with ?s=mo:...;...&d=mo&tz=2:0', () => {
-    const legacyUrl = '?s=mo:14-16,18-19;tu:8;we:10-15&d=mo&tz=2:0&sl=23-7';
-    const decoded = decodeURLState(legacyUrl);
-
-    expect(decoded.schedule?.monday).toEqual([14, 15, 16, 18, 19]);
-    expect(decoded.schedule?.tuesday).toEqual([8]);
-    expect(decoded.schedule?.wednesday).toEqual([10, 11, 12, 13, 14, 15]);
-    expect(decoded.settings?.startDay).toBe('monday');
-    expect(decoded.settings?.myTimezoneOffset).toBe(2);
-    expect(decoded.settings?.clientTimezoneOffset).toBe(0);
-    expect(decoded.settings?.sleepStartHour).toBe(23);
-    expect(decoded.settings?.sleepEndHour).toBe(7);
+  it('does not migrate the retired legacy query format', () => {
+    const decoded = decodeURLState('?s=mo:14-16;tu:8&d=mo&tz=2:0&sl=23-7');
+    expect(decoded).toEqual({});
   });
 
   it('handles empty or malformed search string gracefully', () => {
@@ -113,10 +104,17 @@ describe('urlState clean human-readable format', () => {
   });
 
   it('rejects out-of-range and reversed hour ranges', () => {
-    const decoded = decodeURLState('?mon=-5&mon=30-40&tue=25&wed=20-10');
+    const decoded = decodeURLState('?mon=-5&tue=25&wed=20-10&thu=3-99');
     expect(decoded.schedule?.monday).toEqual([]);
     expect(decoded.schedule?.tuesday).toEqual([]);
     expect(decoded.schedule?.wednesday).toEqual([]);
+    expect(decoded.schedule?.thursday).toEqual([]);
+  });
+
+  it('strips invalid tokens and rejects duplicate day parameters', () => {
+    const decoded = decodeURLState('?mon=8_3-4_bad_99&tue=3&tue=4');
+    expect(decoded.schedule?.monday).toEqual([3, 4, 8]);
+    expect(decoded.schedule?.tuesday).toEqual([]);
   });
 
   it('ignores malformed hours, unsupported timezones, and invalid sleep hours', () => {
