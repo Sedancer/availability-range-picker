@@ -13,7 +13,7 @@ describe('state validation', () => {
     });
 
     expect(settings.colorMode).toBe('dark');
-    expect(settings.startDay).toBe('thursday');
+    expect(settings.startDay).toBe('friday');
     expect(settings.myTimezoneOffset).toBe(0);
     expect(settings.sleepStartHour).toBe(22);
     expect(settings.persistSchedule).toBe(false);

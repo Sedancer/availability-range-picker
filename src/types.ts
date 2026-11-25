@@ -1,4 +1,4 @@
-export type DayOfWeek = 'thursday' | 'friday' | 'saturday' | 'sunday' | 'monday' | 'tuesday' | 'wednesday';
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 export interface DayConfig {
   id: DayOfWeek;

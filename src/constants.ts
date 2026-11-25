@@ -2,7 +2,7 @@ import type { AppSettings, WeekSchedule } from './types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   colorMode: 'dark',
-  startDay: 'thursday',
+  startDay: 'friday',
   myTimezoneOffset: 0,
   clientTimezoneOffset: 0,
   sleepEnabled: true,
@@ -28,9 +28,9 @@ export const PREFILLED_SCHEDULE: WeekSchedule = {
   friday: [],
   saturday: [],
   sunday: [],
-  monday: [14, 15, 16, 18, 19],
-  tuesday: [8],
-  wednesday: [10, 11, 12, 13, 14, 15],
+  monday: [],
+  tuesday: [],
+  wednesday: [],
 };
 
 export const SCHEDULE_STORAGE_KEY = 'timeslotter_schedule_v1';
