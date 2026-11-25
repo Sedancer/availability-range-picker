@@ -1,0 +1,44 @@
+name: Commit authorship policy
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-commit-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject automated attribution
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          pattern='(^|[^[:alnum:]_])(copilot|openai|chatgpt|claude|anthropic|codex|ai[[:space:]_-]*generated)([^[:alnum:]_]|$)'
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            commits=$(git rev-list "$PR_BASE..$HEAD_SHA")
+          elif [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            commits=$(git rev-list "$HEAD_SHA")
+          else
+            commits=$(git rev-list "$PUSH_BEFORE..$HEAD_SHA")
+          fi
+
+          while IFS= read -r commit; do
+            metadata=$(git show -s --format='%an <%ae>%n%cn <%ce>%n%B' "$commit")
+            if printf '%s\n' "$metadata" | grep -Eiq "$pattern"; then
+              echo "Disallowed automated attribution found in commit $commit."
+              exit 1
+            fi
+          done <<< "$commits"

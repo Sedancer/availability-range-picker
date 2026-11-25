@@ -9,11 +9,11 @@
  *   - Each active day is its own clean parameter (mon, tue, wed, thu, fri, sat, sun).
  *   - Ranges separated by "_" instead of commas (e.g. "14-16_18-19").
  *   - Timezone separated by "_" instead of colons (e.g. "2_0", "-5_3").
- *   - Fully backward-compatible with legacy URLs (?s=mo:...;...).
  */
 
 import type { AppSettings, DayOfWeek, WeekSchedule } from '../types';
 import { TIMEZONE_OPTIONS } from './timezones';
+import { DAYS_OF_WEEK, sanitizeSchedule, sanitizeSettings } from './stateValidation';
 
 export const DAY_3LETTER_MAP: Record<string, DayOfWeek> = {
   mon: 'monday',
@@ -35,26 +35,6 @@ export const DAY_TO_3LETTER: Record<DayOfWeek, string> = {
   sunday: 'sun',
 };
 
-// Legacy 2-letter codes for backward compatibility
-const LEGACY_DAY_CODES: Record<string, DayOfWeek> = {
-  mo: 'monday',
-  tu: 'tuesday',
-  we: 'wednesday',
-  th: 'thursday',
-  fr: 'friday',
-  sa: 'saturday',
-  su: 'sunday',
-};
-
-const ALL_DAYS: DayOfWeek[] = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
 const VALID_TIMEZONE_OFFSETS = new Set(TIMEZONE_OPTIONS.map(({ offset }) => offset));
 
 // ─── Encode Helpers ──────────────────────────────────────────────────────────
@@ -65,7 +45,10 @@ const VALID_TIMEZONE_OFFSETS = new Set(TIMEZONE_OPTIONS.map(({ offset }) => offs
  */
 export function encodeHours(hours: number[]): string {
   if (!hours || hours.length === 0) return '';
-  const sorted = Array.from(new Set(hours)).sort((a, b) => a - b);
+  const sorted = Array.from(new Set(hours.filter((hour) =>
+    Number.isInteger(hour) && hour >= 0 && hour < 24
+  ))).sort((a, b) => a - b);
+  if (sorted.length === 0) return '';
   const ranges: string[] = [];
   let start = sorted[0];
   let end = sorted[0];
@@ -84,23 +67,22 @@ export function encodeHours(hours: number[]): string {
 }
 
 /**
- * Decode "14-16_18-19" or legacy "14-16,18-19" -> [14, 15, 16, 18, 19]
+ * Decode "14-16_18-19" -> [14, 15, 16, 18, 19], ignoring invalid tokens.
  */
 export function decodeHours(str: string): number[] {
   if (!str) return [];
   const hours: number[] = [];
-  // Supports both modern "_" and legacy "," separators
-  const parts = str.split(/[_,]/);
+  const parts = str.split('_');
 
   for (const part of parts) {
-    const range = /^(\d+)-(\d+)$/.exec(part);
+    const range = /^(\d{1,2})-(\d{1,2})$/.exec(part);
     if (range) {
       const a = Number(range[1]);
       const b = Number(range[2]);
-      if (a >= 0 && b >= a) {
-        for (let h = a; h <= Math.min(b, 23); h++) hours.push(h);
+      if (a < 24 && b < 24 && b >= a) {
+        for (let h = a; h <= b; h++) hours.push(h);
       }
-    } else if (/^\d+$/.test(part)) {
+    } else if (/^(?:0|[1-9]\d?)$/.test(part)) {
       const h = Number(part);
       if (h >= 0 && h < 24) hours.push(h);
     }
@@ -115,10 +97,12 @@ export function encodeStateToURL(
   settings: AppSettings
 ): string {
   const params = new URLSearchParams();
+  const safeSchedule = sanitizeSchedule(schedule);
+  const safeSettings = sanitizeSettings(settings);
 
   // 1. Separate clean parameters for each active day: mon=14-16_18-19
-  for (const day of ALL_DAYS) {
-    const hours = schedule[day];
+  for (const day of DAYS_OF_WEEK) {
+    const hours = safeSchedule[day];
     if (hours && hours.length > 0) {
       const encoded = encodeHours(hours);
       if (encoded) {
@@ -128,27 +112,27 @@ export function encodeStateToURL(
   }
 
   // 2. Start day: start=thu
-  params.set('start', DAY_TO_3LETTER[settings.startDay]);
+  params.set('start', DAY_TO_3LETTER[safeSettings.startDay]);
 
   // 3. Timezones: tz=0_0 or tz=2_0 or tz=-5_3 (using underscore to prevent %3A)
-  const myTz = settings.myTimezoneOffset;
-  const clTz = settings.clientTimezoneOffset;
+  const myTz = safeSettings.myTimezoneOffset;
+  const clTz = safeSettings.clientTimezoneOffset;
   if (myTz !== 0 || clTz !== 0) {
     params.set('tz', `${myTz}_${clTz}`);
   }
 
   // 4. Sleep: sleep=22-8 or sleep=off
-  if (!settings.sleepEnabled) {
+  if (!safeSettings.sleepEnabled) {
     params.set('sleep', 'off');
-  } else if (settings.sleepStartHour !== 22 || settings.sleepEndHour !== 8) {
-    params.set('sleep', `${settings.sleepStartHour}-${settings.sleepEndHour}`);
+  } else if (safeSettings.sleepStartHour !== 22 || safeSettings.sleepEndHour !== 8) {
+    params.set('sleep', `${safeSettings.sleepStartHour}-${safeSettings.sleepEndHour}`);
   }
 
   const q = params.toString();
   return q ? `?${q}` : '';
 }
 
-// ─── Decode URL -> State (supports both modern & legacy formats) ─────────────
+// ─── Decode URL -> State ─────────────────────────────────────────────────────
 
 export interface ParsedURLState {
   schedule?: Partial<WeekSchedule>;
@@ -163,51 +147,36 @@ export function decodeURLState(search: string): ParsedURLState {
 
   const schedule: Partial<WeekSchedule> = {};
 
-  // 1. Check for modern per-day parameters (mon, tue, wed, thu, fri, sat, sun)
+  // 1. Per-day parameters (mon, tue, wed, thu, fri, sat, sun)
   let foundModernDays = false;
   for (const [key, dayId] of Object.entries(DAY_3LETTER_MAP)) {
-    const val = params.get(key);
-    if (val) {
-      schedule[dayId] = decodeHours(val);
+    if (params.has(key)) {
+      const values = params.getAll(key);
+      schedule[dayId] = values.length === 1 ? decodeHours(values[0]) : [];
       foundModernDays = true;
     }
   }
 
-  // 2. Fallback: check legacy single param ?s=mo:14-16;tu:8
-  if (!foundModernDays) {
-    const sParam = params.get('s');
-    if (sParam) {
-      for (const part of sParam.split(';')) {
-        const colonIdx = part.indexOf(':');
-        if (colonIdx < 0) continue;
-        const code = part.slice(0, colonIdx);
-        const hoursStr = part.slice(colonIdx + 1);
-        const day = LEGACY_DAY_CODES[code] || DAY_3LETTER_MAP[code];
-        if (day) {
-          schedule[day] = decodeHours(hoursStr);
-        }
-      }
-    }
-  }
-
-  if (Object.keys(schedule).length > 0) {
+  if (foundModernDays) {
     result.schedule = schedule;
   }
 
-  // 3. Start day: modern ?start=thu or legacy ?d=thu / ?d=th
-  const startParam = params.get('start') || params.get('d');
+  // 2. Start day
+  const startValues = params.getAll('start');
+  const startParam = startValues.length === 1 ? startValues[0] : null;
   if (startParam) {
     const normalizedStart = startParam.toLowerCase();
-    const mapped = DAY_3LETTER_MAP[normalizedStart] || LEGACY_DAY_CODES[normalizedStart];
+    const mapped = DAY_3LETTER_MAP[normalizedStart];
     if (mapped) {
       result.settings = { ...result.settings, startDay: mapped };
     }
   }
 
-  // 4. Timezones: modern ?tz=2_0 or legacy ?tz=2:0
-  const tzParam = params.get('tz');
+  // 3. Timezones
+  const timezoneValues = params.getAll('tz');
+  const tzParam = timezoneValues.length === 1 ? timezoneValues[0] : null;
   if (tzParam) {
-    const separatorIdx = tzParam.includes('_') ? tzParam.lastIndexOf('_') : tzParam.lastIndexOf(':');
+    const separatorIdx = tzParam.lastIndexOf('_');
     if (separatorIdx > 0) {
       const valuePattern = /^-?\d+(?:\.\d+)?$/;
       const myValue = tzParam.slice(0, separatorIdx);
@@ -229,8 +198,9 @@ export function decodeURLState(search: string): ParsedURLState {
     }
   }
 
-  // 5. Sleep: modern ?sleep=22-8 / ?sleep=off or legacy ?sl=...
-  const sleepParam = params.get('sleep') || params.get('sl');
+  // 4. Sleep
+  const sleepValues = params.getAll('sleep');
+  const sleepParam = sleepValues.length === 1 ? sleepValues[0] : null;
   if (sleepParam === 'off') {
     result.settings = { ...result.settings, sleepEnabled: false };
   } else if (sleepParam) {

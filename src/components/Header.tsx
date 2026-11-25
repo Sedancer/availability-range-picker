@@ -1,60 +1,33 @@
 import React, { useState } from 'react';
-import { Copy, Check, Settings, Trash2, Edit3, X } from 'lucide-react';
+import { Copy, Check, Settings, ListX, Edit3 } from 'lucide-react';
 import type { AppSettings, WeekSchedule } from '../types';
 import { generateAvailabilityString } from '../utils/availability';
-import { parseAvailabilityString } from '../utils/availabilityParser';
-import { useDialogFocus } from '../hooks/useDialogFocus';
+import { formatOffset } from '../utils/timezones';
 
 interface HeaderProps {
   schedule: WeekSchedule;
   settings: AppSettings;
-  onChangeSchedule: (value: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
   onOpenSettings: () => void;
   onClearAll: () => void;
-  onEditOpenChange: (isOpen: boolean) => void;
+  isEditorOpen: boolean;
+  onToggleEditor: () => void;
+  editText: string;
+  onEditTextChange: (text: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   schedule,
   settings,
-  onChangeSchedule,
   onOpenSettings,
   onClearAll,
-  onEditOpenChange,
+  isEditorOpen,
+  onToggleEditor,
+  editText,
+  onEditTextChange,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
 
-  // Client timezone output string (shown in main view)
   const clientAvailability = generateAvailabilityString(schedule, settings);
-
-  // Local timezone string (used for manual text editing)
-  const localSettings: AppSettings = {
-    ...settings,
-    clientTimezoneOffset: settings.myTimezoneOffset, // offsetDiff = 0 -> purely local
-  };
-  const [editText, setEditText] = useState('');
-
-  // When modal opens, sync the text to current local schedule
-  const handleOpenEdit = () => {
-    setEditText(generateAvailabilityString(schedule, localSettings));
-    setIsEditOpen(true);
-    onEditOpenChange(true);
-  };
-
-  const handleCloseEdit = () => {
-    setIsEditOpen(false);
-    onEditOpenChange(false);
-  };
-
-  const editDialogRef = useDialogFocus(isEditOpen, handleCloseEdit);
-
-  // As user edits text in local timezone, parse and update schedule in real-time
-  const handleTextChange = (newText: string) => {
-    setEditText(newText);
-    const parsed = parseAvailabilityString(newText, schedule);
-    onChangeSchedule(parsed);
-  };
 
   const handleCopy = async () => {
     try {
@@ -81,18 +54,48 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-2.5 sm:px-4 py-2">
-        <div className="max-w-4xl mx-auto flex items-center gap-1.5 sm:gap-2">
-          {/* Main Readonly Display Block: Final Result in Client Timezone */}
-          <button
-            type="button"
-            onClick={handleCopy}
-            aria-label="Copy availability text"
-            className="group flex-1 min-w-0 text-left bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-lg px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors shadow-inner"
-          >
-            <span className="block flex-1 min-w-0 overflow-x-auto whitespace-nowrap scrollbar-none font-mono text-xs sm:text-sm text-slate-100 tracking-tight select-all">
-              {clientAvailability || <span className="text-slate-400">No slots selected...</span>}
-            </span>
-          </button>
+        <div className="max-w-4xl mx-auto flex items-start gap-1.5 sm:gap-2">
+          <div className="availability-result relative flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={handleCopy}
+              aria-label="Copy availability text"
+              className="group w-full min-w-0 text-left bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-lg px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors shadow-inner"
+            >
+              <span className="block flex-1 min-w-0 overflow-x-auto whitespace-nowrap scrollbar-none font-mono text-xs sm:text-sm text-slate-100 tracking-tight select-all">
+                {clientAvailability || <span className="text-slate-400">No slots selected...</span>}
+              </span>
+            </button>
+            {isEditorOpen && (
+              <div className="availability-editor-overlay">
+                <div className="rounded-xl border border-slate-700/80 bg-slate-900/95 p-2.5 shadow-2xl backdrop-blur-md">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label htmlFor="availability-editor" className="text-[11px] font-medium text-slate-300">
+                      Edit schedule <span className="text-slate-400">· Times in {formatOffset(settings.myTimezoneOffset)}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={onToggleEditor}
+                      aria-label="Close schedule editor"
+                      className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
+                  <textarea
+                    id="availability-editor"
+                    rows={2}
+                    value={editText}
+                    onChange={(event) => onEditTextChange(event.target.value)}
+                    aria-label={`Schedule in ${formatOffset(settings.myTimezoneOffset)}`}
+                    placeholder="Mon: 09-12; Tue: 14-16;"
+                    autoFocus
+                    className="w-full resize-y rounded-lg border border-slate-800 bg-slate-950/80 p-2 font-mono text-xs text-slate-100 placeholder-slate-500 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Copy Button */}
           <button
@@ -109,16 +112,15 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
 
-          {/* Edit Button: Opens manual text editor popup */}
           <button
             type="button"
-            onClick={handleOpenEdit}
-            aria-label="Edit availability"
-            title="Edit availability text manually in local timezone"
+            onClick={onToggleEditor}
+            aria-label={isEditorOpen ? 'Close schedule editor' : 'Edit availability'}
+            title="Edit availability text inline in local timezone"
             className="flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-slate-100 border border-slate-800 hover:border-slate-700 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer shrink-0"
           >
             <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Edit</span>
+            <span className="hidden sm:inline">{isEditorOpen ? 'Done' : 'Edit'}</span>
           </button>
 
           {/* Clear All button */}
@@ -126,9 +128,11 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onClearAll}
             aria-label="Clear all selected hours"
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0"
+            title="Clear all selected hours"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/25 bg-rose-500/5 px-2 py-1.5 text-rose-300 hover:border-rose-400/50 hover:bg-rose-500/15 hover:text-rose-200 transition-colors cursor-pointer"
           >
-            <Trash2 className="w-4 h-4" />
+            <ListX className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs">Clear all</span>
           </button>
 
           {/* Settings button */}
@@ -142,58 +146,6 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </header>
-
-      {/* Manual Text Editor Modal */}
-      {isEditOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-          <div
-            ref={editDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="availability-editor-title"
-            tabIndex={-1}
-            className="relative w-full max-w-lg bg-slate-900 text-slate-100 rounded-xl shadow-2xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-emerald-400" />
-                <h3 id="availability-editor-title" className="text-sm font-semibold text-slate-200">Edit availability</h3>
-              </div>
-              <button
-                type="button"
-                onClick={handleCloseEdit}
-                aria-label="Close availability editor"
-                className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="px-4 pb-3">
-              <textarea
-                rows={3}
-                value={editText}
-                onChange={(e) => handleTextChange(e.target.value)}
-                aria-label="Availability schedule"
-                placeholder="Fri: 10-13; Sat: -; Sun: 22-24;"
-                className="w-full bg-slate-950/70 rounded-lg p-3 font-mono text-xs sm:text-sm text-slate-100 placeholder-slate-400 outline-none ring-0 tracking-tight resize-y"
-                autoFocus
-              />
-            </div>
-
-            <div className="px-4 pb-4 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={handleCloseEdit}
-                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

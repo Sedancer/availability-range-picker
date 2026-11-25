@@ -61,7 +61,14 @@ export const FluidBackground: React.FC<FluidBackgroundProps> = ({ paused = false
     const filterType = linearExt ? gl.LINEAR : gl.NEAREST;
 
     gl.clearColor(0, 0, 0, 0);
-    let isPaused = pausedRef.current;
+    let externalPause = pausedRef.current;
+    let isPaused = externalPause || document.visibilityState === 'hidden';
+    let interacting = false;
+    let interactionCooldown = false;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let animId = 0;
+    let lastTime = performance.now();
+    let lastFrameTime = 0;
 
     const isMobile = window.innerWidth < 768;
     const CFG = {
@@ -487,71 +494,96 @@ export const FluidBackground: React.FC<FluidBackgroundProps> = ({ paused = false
 
     // ── Pointer Interaction ──────────────────────────────────────────────────
     let lastX = 0, lastY = 0, hasMoved = false;
+    let pendingPointer: { x: number; y: number } | null = null;
+    let pendingBurst = false;
 
     function handlePointerMove(cx: number, cy: number) {
-      if (!fboReady || isPaused) return;
-      const x = cx / window.innerWidth;
-      const y = 1.0 - cy / window.innerHeight;
-
-      if (!hasMoved) {
-        lastX = x;
-        lastY = y;
-        hasMoved = true;
-        return;
-      }
-
-      const dx = (x - lastX) * CFG.SPLAT_F;
-      const dy = (y - lastY) * CFG.SPLAT_F;
-
-      if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
-        splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R);
-      }
-      lastX = x;
-      lastY = y;
+      if (!fboReady) return;
+      pendingPointer = { x: cx / window.innerWidth, y: 1.0 - cy / window.innerHeight };
     }
 
     function handlePointerDown(cx: number, cy: number) {
-      if (!fboReady || isPaused) return;
-      const x = cx / window.innerWidth;
-      const y = 1.0 - cy / window.innerHeight;
-      lastX = x;
-      lastY = y;
-      hasMoved = true;
-
-      // Swift laser burst on click
-      const angle = Math.random() * Math.PI * 2;
-      const dx = Math.cos(angle) * 6000;
-      const dy = Math.sin(angle) * 6000;
-      splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R * 1.6);
+      if (!fboReady) return;
+      pendingPointer = { x: cx / window.innerWidth, y: 1.0 - cy / window.innerHeight };
+      pendingBurst = true;
     }
 
-    const onMouse = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
-    const onMouseDown = (e: MouseEvent) => handlePointerDown(e.clientX, e.clientY);
-    const onTouch = (e: TouchEvent) => {
-      if (e.touches[0]) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-    };
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches[0]) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
-    };
+    function processPointerInput() {
+      if (!pendingPointer) return;
+      const { x, y } = pendingPointer;
+      pendingPointer = null;
 
-    window.addEventListener('mousemove', onMouse, { passive: true });
-    window.addEventListener('mousedown', onMouseDown, { passive: true });
-    window.addEventListener('touchmove', onTouch, { passive: true });
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
+      if (pendingBurst) {
+        pendingBurst = false;
+        const angle = Math.random() * Math.PI * 2;
+        splat(x, y, Math.cos(angle) * 6000, Math.sin(angle) * 6000, nextLaserColor(), CFG.SPLAT_R * 1.6);
+      } else if (hasMoved) {
+        const dx = (x - lastX) * CFG.SPLAT_F;
+        const dy = (y - lastY) * CFG.SPLAT_F;
+        if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
+          splat(x, y, dx, dy, nextLaserColor(), CFG.SPLAT_R);
+        }
+      } else {
+        hasMoved = true;
+      }
+      lastX = x;
+      lastY = y;
+    }
+
+    function updatePausedState() {
+      const shouldPause = externalPause
+        || interacting
+        || interactionCooldown
+        || document.visibilityState === 'hidden';
+      if (isPaused === shouldPause) return;
+      isPaused = shouldPause;
+      if (isPaused) {
+        hasMoved = false;
+        cancelAnimationFrame(animId);
+      } else {
+        hasMoved = false;
+        lastTime = performance.now();
+        lastFrameTime = 0;
+        animId = requestAnimationFrame(step);
+      }
+    }
+
+    const onPointerMove = (e: PointerEvent) => handlePointerMove(e.clientX, e.clientY);
+    const onPointerDown = (e: PointerEvent) => {
+      interacting = true;
+      if (resumeTimer) clearTimeout(resumeTimer);
+      updatePausedState();
+      handlePointerDown(e.clientX, e.clientY);
+    };
+    const onPointerEnd = () => {
+      interacting = false;
+      interactionCooldown = true;
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        interactionCooldown = false;
+        updatePausedState();
+      }, 350);
+    };
+    const onVisibilityChange = () => updatePausedState();
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerEnd, { passive: true });
+    window.addEventListener('pointercancel', onPointerEnd, { passive: true });
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     // ── Animation Loop ───────────────────────────────────────────────────────
-    let lastTime = performance.now();
-    let animId: number;
-
     function step(now: number) {
       if (isPaused) return;
       animId = requestAnimationFrame(step);
 
-      if (!fboReady) return;
+      if (!fboReady || now - lastFrameTime < 1000 / 30) return;
+      lastFrameTime = now;
 
       const dt = Math.min((now - lastTime) / 1000, 0.02);
       lastTime = now;
 
+      processPointerInput();
       tickAmbient();
 
       // 1. Curl
@@ -644,16 +676,8 @@ export const FluidBackground: React.FC<FluidBackgroundProps> = ({ paused = false
     }
 
     pauseAnimationRef.current = (shouldPause) => {
-      if (isPaused === shouldPause) return;
-      isPaused = shouldPause;
-      if (isPaused) {
-        hasMoved = false;
-        cancelAnimationFrame(animId);
-      } else {
-        hasMoved = false;
-        lastTime = performance.now();
-        animId = requestAnimationFrame(step);
-      }
+      externalPause = shouldPause;
+      updatePausedState();
     };
 
     if (!isPaused) animId = requestAnimationFrame(step);
@@ -661,12 +685,14 @@ export const FluidBackground: React.FC<FluidBackgroundProps> = ({ paused = false
     return () => {
       pauseAnimationRef.current = () => {};
       cancelAnimationFrame(animId);
+      if (resumeTimer) clearTimeout(resumeTimer);
       timeoutIds.forEach(clearTimeout);
       window.removeEventListener('resize', resizeCanvas);
-      window.removeEventListener('mousemove', onMouse);
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('touchmove', onTouch);
-      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerEnd);
+      window.removeEventListener('pointercancel', onPointerEnd);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       deleteFBOs();
       programs.forEach(({ p }) => gl!.deleteProgram(p));
       gl!.deleteBuffer(quadBuf);
